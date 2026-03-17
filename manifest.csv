@@ -1,0 +1,7 @@
+"ID","name","versionNumber","contentType","dataFileSizeBytes","createdBy","createdOn","modifiedBy","modifiedOn","parentId","synapseURL","dataFileMD5Hex"
+"syn34639082","requirements.txt","1","text/plain","3495","3435889","1660847913982","3435889","1660847913982","syn26828464","https://www.synapse.org/#!Synapse:syn34639082.1","6eabf1b14631eb14204add5d02f08eac"
+"syn26828487","Figures-Finalized-Permutation-Test.ipynb","2","application/octet-stream","29558","3435889","1642186920308","3435889","1660847742181","syn26828464","https://www.synapse.org/#!Synapse:syn26828487.2","407122dc3474bd38ac62da9828b86533"
+"syn26828488","lung_helpers.py","2","text/x-python-script","137405","3435889","1642186920316","3435889","1660847786777","syn26828464","https://www.synapse.org/#!Synapse:syn26828488.2","1e18c21ce0a114454c2b22659c3bd075"
+"syn26828497","Figures-Finalized-Permutation-Test.html","2","text/html","666520","3435889","1642186921337","3435889","1660847739526","syn26828464","https://www.synapse.org/#!Synapse:syn26828497.2","2fcc1d1185ed6197777ed7f65197826d"
+"syn26828481","Figures-Finalized.ipynb","2","application/octet-stream","7967416","3435889","1642186920200","3435889","1660847771687","syn26828464","https://www.synapse.org/#!Synapse:syn26828481.2","90b332ace86b1f637e84fd82f6e09877"
+"syn26828498","Figures-Finalized.html","2","text/html","8738120","3435889","1642186921578","3435889","1660847750901","syn26828464","https://www.synapse.org/#!Synapse:syn26828498.2","98fa7f63c468ab68bac641a1c66716c8"
