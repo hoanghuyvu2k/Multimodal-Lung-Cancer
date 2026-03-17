@@ -387,20 +387,48 @@ def get_clinical_table(path, main_index_col):
     return df
 
 def get_clinical_table_v2(path, main_index_col, cohort):
+    """
+    Xử lý và chuẩn bị dữ liệu lâm sàng từ file CSV cho phân tích machine learning
+    
+    Args:
+        path (str): Đường dẫn đến file CSV chứa dữ liệu lâm sàng
+        main_index_col (str): Tên cột dùng làm index chính (vd: 'dmp_pt_id', 'did_acc')
+        cohort (DataFrame): DataFrame chứa danh sách bệnh nhân cần lọc
+    
+    Returns:
+        DataFrame: Dữ liệu lâm sàng đã được xử lý và tạo nhãn phân loại
+    """
+    # Đọc file CSV và chuyển đổi cột 'did_acc' thành string để tránh lỗi định dạng
     df = pd.read_csv(path, converters = {'did_acc':str})
+    
+    # Tạo cột 'main_index' từ cột được chỉ định và chuyển đổi thành string
     df['main_index'] = df[main_index_col].astype(str)
+    
+    # Đặt 'main_index' làm index chính của DataFrame
     df = df.set_index('main_index')
+    
+    # Lọc chỉ lấy các bệnh nhân có trong cohort (loại bỏ các index NaN)
     df = df.loc[cohort.index.dropna()]
 
+    # Chuyển đổi cột 'halo_tumor_quality' thành float, bỏ qua các giá trị không thể chuyển đổi
     df['halo_tumor_quality'] = df['halo_tumor_quality'].astype(float, errors='ignore')
 
+    # Xử lý cột 'pack_years' (số năm hút thuốc): gán 0.0 cho các giá trị không phải số
     df.loc [~df['pack_years'].str.isnumeric(), 'pack_years'] = 0.0
 
+    # Tạo nhãn phân loại: mặc định tất cả bệnh nhân có label = 1 (đáp ứng tốt)
     df.loc  [ :, 'label' ] = 1
+    
+    # Bệnh nhân có BOR = 1 (không đáp ứng) → label = 0
     df.loc  [ df['bor'] == 1, 'label' ] = 0
+    
+    # Bệnh nhân có BOR = 2 (đáp ứng kém) → label = 0
     df.loc  [ df['bor'] == 2, 'label' ] = 0
    
+    # In thống kê: tổng số bệnh nhân và số bệnh nhân có label = 0 (không đáp ứng)
     print (len(df), sum(df['label'] == 0 ))
+    
+    # Trả về DataFrame đã được xử lý
     return df
 
 def get_id_table():
@@ -525,6 +553,11 @@ def prepare_rad_modality_by_size(df_dict, df, modality_mask, sites, name, sort='
     modality_site_full = df_site.copy(deep=True).reset_index()
 
     modality_site = modality_site_full[(modality_site_full['job_tag']==RAD_JOB_TAG)]
+    
+    # Đảm bảo cột name tồn tại trong modality_mask
+    if name not in modality_mask.columns:
+        modality_mask[name] = False
+    
     modality_mask.loc[modality_site.set_index('main_index').index, name] = True
     
     modality_site = modality_site \
@@ -538,6 +571,9 @@ def prepare_rad_modality_by_size(df_dict, df, modality_mask, sites, name, sort='
     
     print (np.unique(  modality_site['lesion_index'].dropna(), return_counts=True))
     modality_site = modality_site.drop(columns='lesion_index')
+    
+    # Chỉ giữ lại các cột numeric, loại bỏ các cột string/object như 'job_tag', 'site', etc.
+    modality_site = modality_site.select_dtypes(include=[np.number])
 
     modality_site_full = modality_site_full.set_index('main_index')
     df_dict[name] = modality_site
@@ -548,6 +584,11 @@ def prepare_rad_modality_by_size(df_dict, df, modality_mask, sites, name, sort='
 def prepare_other_modalities(df_dict, df, modality_mask, name):
     # Set pathology
     df = df.copy(deep=True).reset_index().set_index('main_index')
+    
+    # Đảm bảo cột name tồn tại trong modality_mask
+    if name not in modality_mask.columns:
+        modality_mask[name] = False
+    
     modality_mask.loc[df.index, name] = True
     df = df.astype(float)
     df = df.join(modality_mask[name], how='right').drop(columns=name)
@@ -845,90 +886,358 @@ class AttentionMatrix(nn.Module):
 
     def setup_matrix(self):
         """ 
-        Creates two module lists:
-            l_risk_linears of length n_channels, which predict the modality-specific risk score
-            l_attn_linears of length n_channels^2, which predict the cross modality attention scores
+        Khởi tạo các lớp linear cần thiết cho việc tính toán điểm rủi ro và điểm attention.
+        Phương thức này được gọi sau khi tất cả các modality đầu vào đã được thêm vào thông qua `add_channel`.
         """
+        # ModuleList cho các lớp linear tính toán điểm rủi ro cho từng modality.
+        # Mỗi lớp linear sẽ ánh xạ các feature của một modality về một điểm rủi ro duy nhất.
         self.l_attn_linears   = nn.ModuleList()
+        # ModuleList cho các lớp linear tính toán điểm attention thô.
+        # Các lớp này sẽ được sử dụng để tạo ma trận attention giữa các modality.
         self.l_risk_linears   = nn.ModuleList()
+        # Lưu trữ số lượng feature của mỗi modality. Được sử dụng để chuẩn hóa điểm attention.
         self.l_feature_factor = []
+
+        # Lặp qua các hình dạng (số lượng feature) của từng kênh (modality) đã được thêm vào.
         for channel_shape in self.input_channel_shapes:
-            self.l_risk_linears.append   ( nn.Linear(channel_shape, 1) )
-            self.l_feature_factor.append ( torch.tensor([channel_shape]) )
+            # Thêm một lớp linear vào l_risk_linears cho modality hiện tại.
+            # Lớp này chuyển đổi `channel_shape` features thành 1 output (điểm rủi ro).
+            self.l_risk_linears.append(nn.Linear(channel_shape, 1))
+            # Lưu trữ số lượng feature của modality hiện tại để sử dụng cho chuẩn hóa attention.
+            self.l_feature_factor.append(torch.tensor([channel_shape]))
+            
+            # Đối với mỗi modality đầu vào, chúng ta cần các lớp linear để tính toán 
+            # mức độ chú ý của nó đến TẤT CẢ các modality khác (bao gồm cả chính nó).
+            # Do đó, chúng ta thêm `n_input_channels` lớp linear vào l_attn_linears cho mỗi modality.
             for j in range(self.n_input_channels):
-                self.l_attn_linears.append( nn.Linear(channel_shape, 1) )
+                self.l_attn_linears.append(nn.Linear(channel_shape, 1))
         
-#         Start with zero bias for simplicity
+        # Khởi tạo bias của tất cả các lớp linear về 0 để đơn giản hóa quá trình học ban đầu.
+        # Có thể tùy chỉnh cách khởi tạo bias tùy thuộc vào bài toán cụ thể.
         for m in self.l_attn_linears:  torch.nn.init.zeros_(m.bias)
         for m in self.l_risk_linears:  torch.nn.init.zeros_(m.bias)
             
-        # We'll need to reshape our linear list into a square matrix
+        # Tính toán tuple reshape cho việc chuyển đổi một danh sách các điểm attention 1D
+        # thành ma trận attention 3D (batch_size, n_modalities, n_modalities).
         self.reshape_tuple = (-1, self.n_input_channels, self.n_input_channels)
     
     def get_l2_weight_sum(self):
         return  torch.stack([p.norm(p=2) for n, p in self.named_parameters() if 'weight' in n]).sum() 
         
     def forward(self, inputs, mask):
+        # Khởi tạo các list để lưu trữ điểm rủi ro và điểm attention thô
         attn_reduced = []
         risk_reduced = []
         
         matrix_index = 0
         
-        # Linear mask
+        # --- MASKING ---
+        # mask (batch_size, n_modalities) cho biết modality nào có sẵn cho từng mẫu trong batch
         linear_mask  = mask
         
-        # Cleverly broadcast linear mask into matrix mask
+        # Mở rộng mask 2D thành mask 3D (batch_size, n_modalities, n_modalities)
+        # để sử dụng cho ma trận attention.
         matrix_mask  = mask.reshape(-1, self.n_input_channels, 1).expand(-1, -1, self.n_input_channels)
 
-        # Change modal mask depending on cross-modality weighting flag
+        # Nếu không cho phép attention chéo giữa các modality (cross-modality)
         if not self.cross_modality_enabled:
             
-            # Mask away non-diagnoanl elements i.e., no cross-modality attention weighting
+            # Tạo một ma trận đơn vị để chỉ giữ lại các phần tử trên đường chéo chính
+            # của ma trận attention, tức là mỗi modality chỉ attend đến chính nó.
             identity_mask = torch.eye(self.n_input_channels)\
                 .reshape(1, self.n_input_channels, self.n_input_channels)\
                 .repeat(matrix_mask.shape[0], 1, 1)
 
-            # Multiply masks
+            # Áp dụng identity_mask để loại bỏ các phần tử ngoài đường chéo
             matrix_mask = identity_mask * matrix_mask
         
-        # Outer-loop: over input channels/inputs
+        # --- TÍNH TOÁN ĐIỂM RỦI RO VÀ ATTENTION ---
+        # Vòng lặp ngoài: lặp qua từng modality đầu vào
         for channel_index, input_channel in enumerate(inputs):
             
-            # Calculate the risk (once per modality)
+            # 1. TÍNH ĐIỂM RỦI RO (RISK SCORE)
+            # Mỗi modality có một lớp linear riêng (l_risk_linears) để tính điểm rủi ro
+            # từ các feature của nó. Đầu ra là một giá trị scalar cho mỗi mẫu.
             risk_reduced.append ( self.l_risk_linears[channel_index](input_channel) )
             
-            # Inner-loop: over input channels/inputs again to predict attention scores for other modalities
+            # Vòng lặp trong: tính toán ảnh hưởng của modality hiện tại lên tất cả các modality khác
             for j in range(self.n_input_channels):
                 
-                # Calculate the attention weight (once per modality also)
+                # 2. TÍNH ĐIỂM ATTENTION THÔ
+                # l_attn_linears chứa N*N lớp linear, tính toán điểm attention thô.
+                # Chia cho l_feature_factor (số lượng feature) để chuẩn hóa,
+                # tránh modality có nhiều feature hơn thì có điểm attention lớn hơn một cách không công bằng.
                 attn_reduced.append ( self.l_attn_linears[matrix_index](input_channel) / self.l_feature_factor[channel_index] )
                 
-                # Keep track of our matrix index
                 matrix_index += 1
-                
-        risk_scores  = torch.cat( risk_reduced, axis=1 ) # Turn list of scores into 2D tensor, mask out missing risk scores
+        
+        # --- KẾT HỢP VÀ CHUẨN HÓA ---
+        # 3. KẾT HỢP ĐIỂM RỦI RO
+        # Ghép các điểm rủi ro từ list thành một tensor (batch_size, n_modalities)
+        risk_scores  = torch.cat( risk_reduced, axis=1 )
+        # Áp dụng hàm tanh để đưa điểm rủi ro về khoảng [-1, 1] và áp dụng mask
+        # để đảm bảo các modality không có sẵn có điểm rủi ro bằng 0.
         risk_weights = linear_mask * self.tanh ( risk_scores ) # r_i = tanh(R)
         
-        attn_matrix = torch.cat( attn_reduced, axis=1 ).reshape(self.reshape_tuple) # Turn list of scores into B x n x n 3D matrix,
-        attn_matrix = matrix_mask * self.softplus ( attn_matrix ) # Activate weights, mask away missing modalities so they don't count for other modalities weights
-        attn_scores = linear_mask * attn_matrix.sum(dim=1) # Compute the modality specific attention scores, and mask away missing modalities again so they don't contribute to the normalization
+        # 4. TẠO MA TRẬN ATTENTION
+        # Ghép các điểm attention thô và reshape thành ma trận 3D (batch_size, n_modalities, n_modalities)
+        attn_matrix = torch.cat( attn_reduced, axis=1 ).reshape(self.reshape_tuple)
+        # Áp dụng hàm softplus để đảm bảo các điểm attention không âm và áp dụng matrix_mask.
+        attn_matrix = matrix_mask * self.softplus ( attn_matrix )
+        
+        # 5. TÍNH ĐIỂM ATTENTION CUỐI CÙNG CHO MỖI MODALITY
+        # Tổng hợp các điểm attention theo cột (dim=1) để có điểm attention tổng hợp cho mỗi modality.
+        # attn_matrix[b, i, j] là "sự chú ý mà modality j dành cho modality i".
+        # .sum(dim=1) là tổng hợp tất cả sự chú ý mà một modality nhận được từ các modality khác (và chính nó).
+        attn_scores = linear_mask * attn_matrix.sum(dim=1)
+        
+        # 6. CHUẨN HÓA TRỌNG SỐ ATTENTION (ATTENTION WEIGHT)
+        # Sử dụng L1-normalize (tương tự softmax) để các trọng số attention của các modality có sẵn
+        # có tổng bằng 1. Đây là các trọng số a_i cuối cùng.
         attn_weight = F.normalize(attn_scores, p=1) # Attention a_i = score_i / sum(score_i)
             
-#         if not self.training:
-#             heatmap = attn_matrix.detach().numpy()[0]
-#             heatmap[heatmap==0] = np.nan
-#             sns.heatmap(heatmap, cmap='vlag')
-#             plt.show()
-        
-        attn_norm   = attn_matrix.norm(p=2, dim=(1,2)).mean() # Compute the attention weight norm (activation scale)
-        risk_norm   = risk_scores.norm(p=2, dim=( 1 )).mean() # Compute the risk weight norm (activation scale)
+        # --- TÍNH TOÁN CHO REGULARIZATION ---
+        # Tính norm L2 của ma trận attention và vector điểm rủi ro.
+        # Các giá trị này có thể được dùng trong hàm loss để phạt các trọng số lớn, giúp mô hình tránh overfitting.
+        attn_norm   = attn_matrix.norm(p=2, dim=(1,2)).mean()
+        risk_norm   = risk_scores.norm(p=2, dim=( 1 )).mean()
 
+        # --- TÍNH TỔNG ĐIỂM RỦI RO CUỐI CÙNG ---
+        # 7. TÍNH ĐIỂM DỰ ĐOÁN CUỐI CÙNG
         if self.attention_gate_enabled: 
+            # Điểm rủi ro cuối cùng là tổng có trọng số của các điểm rủi ro modality.
+            # Trọng số chính là các attention weight đã được chuẩn hóa.
             total_risk = torch.sum(risk_weights * attn_weight, dim=1) # Total Risk = sum (r_i * a_i)
         else:
+             # Nếu cổng attention bị tắt, chỉ cần tổng các điểm rủi ro (đã qua tanh).
              total_risk = torch.sum(risk_weights, dim=1)
 
         return total_risk, risk_weights, attn_weight, attn_norm, risk_norm
+
+
+class AttentionMatrixOvO(nn.Module):
+    """
+    One-Versus-Others (OvO) Attention Mechanism
+    
+    Khác với AttentionMatrix gốc, OvO attention tính toán attention weight cho mỗi modality
+    bằng cách so sánh nó với tất cả các modality khác (others). Điều này tạo ra một cơ chế
+    cạnh tranh (competitive) giữa các modality.
+    
+    Attention weight cho modality i được tính:
+    attention_i = sigmoid(score_i - mean(score_others))
+    """
+    def __init__(self, attention_gate_enabled=True):
+        super(AttentionMatrixOvO, self).__init__()
+        torch.manual_seed(42)
+
+        self.input_channel_shapes = []
+        self.softplus = nn.Softplus()
+        self.sigmoid  = nn.Sigmoid()
+        self.tanh     = nn.Tanh()
+        self.attention_gate_enabled = attention_gate_enabled
+        
+    def add_channel(self, channel_template):
+        """ 
+        Add a channel of shape channel_template
+        """
+        self.input_channel_shapes.append (channel_template.shape[1])
+        self.n_input_channels = len(self.input_channel_shapes)
+        
+    def setup_matrix(self):
+        """ 
+        Creates module lists:
+            l_risk_linears: predict modality-specific risk score
+            l_attn_linears: predict attention score for each modality (OvO)
+        """
+        self.l_attn_linears   = nn.ModuleList()
+        self.l_risk_linears   = nn.ModuleList()
+        self.l_feature_factor = []
+        for channel_shape in self.input_channel_shapes:
+            self.l_risk_linears.append   ( nn.Linear(channel_shape, 1) )
+            self.l_attn_linears.append   ( nn.Linear(channel_shape, 1) )
+            self.l_feature_factor.append ( torch.tensor([channel_shape]) )
+        
+        # Start with zero bias for simplicity
+        for m in self.l_attn_linears:  torch.nn.init.zeros_(m.bias)
+        for m in self.l_risk_linears:  torch.nn.init.zeros_(m.bias)
+    
+    def get_l2_weight_sum(self):
+        return  torch.stack([p.norm(p=2) for n, p in self.named_parameters() if 'weight' in n]).sum() 
+        
+    def forward(self, inputs, mask):
+        """
+        Forward pass với OvO attention mechanism
+        
+        Args:
+            inputs: List of tensors, mỗi tensor là một modality [batch_size, n_features]
+            mask: Tensor [batch_size, n_modalities] chỉ ra modality nào có sẵn
+        
+        Returns:
+            total_risk: Combined risk score
+            risk_weights: Risk scores cho từng modality
+            attn_weight: Attention weights cho từng modality (OvO)
+            attn_norm: Attention norm (for regularization)
+            risk_norm: Risk norm (for regularization)
+        """
+        risk_reduced = []
+        attn_scores_raw = []
+        
+        linear_mask = mask  # [batch_size, n_modalities]
+        
+        # Tính risk scores và attention scores cho từng modality
+        for channel_index, input_channel in enumerate(inputs):
+            # Risk score cho modality này
+            risk_reduced.append(self.l_risk_linears[channel_index](input_channel))
+            
+            # Attention score cho modality này (sẽ được so sánh với others)
+            attn_score = self.l_attn_linears[channel_index](input_channel) / self.l_feature_factor[channel_index]
+            attn_scores_raw.append(attn_score)
+        
+        # Stack các scores
+        risk_scores = torch.cat(risk_reduced, axis=1)  # [batch_size, n_modalities]
+        risk_weights = linear_mask * self.tanh(risk_scores)  # r_i = tanh(R)
+        
+        attn_scores_raw = torch.cat(attn_scores_raw, axis=1)  # [batch_size, n_modalities]
+        
+        # OvO Attention: Mỗi modality được so sánh với tất cả các modality khác
+        # attention_i = sigmoid(score_i - mean(score_others))
+        batch_size = attn_scores_raw.shape[0]
+        n_modalities = attn_scores_raw.shape[1]
+        
+        # Tạo mask để tính mean của các modality khác
+        # Với mỗi modality i, tính mean của tất cả modality j != i
+        attn_ovo = []
+        for i in range(n_modalities):
+            # Lấy score của modality i
+            score_i = attn_scores_raw[:, i:i+1]  # [batch_size, 1]
+            
+            # Tính mean của các modality khác (j != i)
+            # Tạo mask để loại bỏ modality i
+            others_mask = linear_mask.clone()
+            others_mask[:, i] = 0  # Loại bỏ modality i khỏi tính mean
+            
+            # Tính mean của các modality khác (chỉ tính các modality có mask=1)
+            score_others = attn_scores_raw.clone()
+            score_others[:, i] = 0  # Loại bỏ modality i
+            n_others = others_mask.sum(dim=1, keepdim=True)  # Số lượng modality khác có sẵn
+            n_others = torch.clamp(n_others, min=1)  # Tránh chia cho 0
+            mean_others = (score_others * others_mask).sum(dim=1, keepdim=True) / n_others
+            
+            # OvO attention: sigmoid(score_i - mean_others)
+            # Nếu score_i > mean_others thì attention cao, ngược lại thấp
+            ovo_score = self.sigmoid(score_i - mean_others)
+            attn_ovo.append(ovo_score)
+        
+        attn_ovo_tensor = torch.cat(attn_ovo, dim=1)  # [batch_size, n_modalities]
+        
+        # Apply mask và normalize
+        attn_scores = linear_mask * self.softplus(attn_ovo_tensor)
+        attn_weight = F.normalize(attn_scores, p=1, dim=1)  # Normalize để tổng = 1
+        
+        # Tính norms cho regularization
+        attn_norm = attn_scores.norm(p=2, dim=1).mean()
+        risk_norm = risk_scores.norm(p=2, dim=1).mean()
+        
+        # Combine risk với attention weights
+        if self.attention_gate_enabled: 
+            total_risk = torch.sum(risk_weights * attn_weight, dim=1)  # Total Risk = sum (r_i * a_i)
+        else:
+            total_risk = torch.sum(risk_weights, dim=1)
+        
+        # Trả về mixing_matrix tương thích với interface gốc (dùng cho visualization)
+        # Tạo một ma trận 3D để tương thích với interface gốc
+        mixing_matrix = attn_weight.unsqueeze(2).expand(-1, -1, n_modalities) * attn_weight.unsqueeze(1).expand(-1, n_modalities, -1)
+        
+        return total_risk, risk_weights, mixing_matrix, attn_norm, risk_norm
+
+
+class AttentionMatrixOvO_Softmax(nn.Module):
+    """
+    One-Versus-Others (OvO) Attention Mechanism với Softmax
+    
+    Khác với AttentionMatrixOvO dùng sigmoid, phiên bản này dùng softmax.
+    Công thức: softmax(score_i - mean(score_others)) cho tất cả modalities cùng lúc.
+    """
+    def __init__(self, attention_gate_enabled=True):
+        super(AttentionMatrixOvO_Softmax, self).__init__()
+        torch.manual_seed(42)
+
+        self.input_channel_shapes = []
+        self.softplus = nn.Softplus()
+        self.softmax = nn.Softmax(dim=1)
+        self.tanh = nn.Tanh()
+        self.attention_gate_enabled = attention_gate_enabled
+        
+    def add_channel(self, channel_template):
+        self.input_channel_shapes.append(channel_template.shape[1])
+        self.n_input_channels = len(self.input_channel_shapes)
+        
+    def setup_matrix(self):
+        self.l_attn_linears = nn.ModuleList()
+        self.l_risk_linears = nn.ModuleList()
+        self.l_feature_factor = []
+        for channel_shape in self.input_channel_shapes:
+            self.l_risk_linears.append(nn.Linear(channel_shape, 1))
+            self.l_attn_linears.append(nn.Linear(channel_shape, 1))
+            self.l_feature_factor.append(torch.tensor([channel_shape]))
+        
+        for m in self.l_attn_linears: torch.nn.init.zeros_(m.bias)
+        for m in self.l_risk_linears: torch.nn.init.zeros_(m.bias)
+    
+    def get_l2_weight_sum(self):
+        return torch.stack([p.norm(p=2) for n, p in self.named_parameters() if 'weight' in n]).sum()
+        
+    def forward(self, inputs, mask):
+        risk_reduced = []
+        attn_scores_raw = []
+        linear_mask = mask
+        
+        for channel_index, input_channel in enumerate(inputs):
+            risk_reduced.append(self.l_risk_linears[channel_index](input_channel))
+            attn_score = self.l_attn_linears[channel_index](input_channel) / self.l_feature_factor[channel_index]
+            attn_scores_raw.append(attn_score)
+        
+        risk_scores = torch.cat(risk_reduced, axis=1)
+        risk_weights = linear_mask * self.tanh(risk_scores)
+        attn_scores_raw = torch.cat(attn_scores_raw, axis=1)
+        
+        batch_size = attn_scores_raw.shape[0]
+        n_modalities = attn_scores_raw.shape[1]
+        
+        # Tính tất cả differences cùng lúc
+        ovo_differences = []
+        for i in range(n_modalities):
+            score_i = attn_scores_raw[:, i:i+1]
+            others_mask = linear_mask.clone()
+            others_mask[:, i] = 0
+            score_others = attn_scores_raw.clone()
+            score_others[:, i] = 0
+            n_others = others_mask.sum(dim=1, keepdim=True)
+            n_others = torch.clamp(n_others, min=1)
+            mean_others = (score_others * others_mask).sum(dim=1, keepdim=True) / n_others
+            ovo_diff = score_i - mean_others
+            ovo_differences.append(ovo_diff)
+        
+        ovo_differences_tensor = torch.cat(ovo_differences, dim=1)
+        ovo_differences_masked = ovo_differences_tensor.clone()
+        ovo_differences_masked[linear_mask == 0] = -1e9
+        
+        # Softmax: attention weights tổng = 1 ngay từ đầu
+        attn_weight = self.softmax(ovo_differences_masked)
+        attn_weight = attn_weight * linear_mask
+        attn_weight = attn_weight / (attn_weight.sum(dim=1, keepdim=True) + 1e-9)
+        
+        attn_norm = attn_weight.norm(p=2, dim=1).mean()
+        risk_norm = risk_scores.norm(p=2, dim=1).mean()
+        
+        if self.attention_gate_enabled: 
+            total_risk = torch.sum(risk_weights * attn_weight, dim=1)
+        else:
+            total_risk = torch.sum(risk_weights, dim=1)
+        
+        mixing_matrix = attn_weight.unsqueeze(2).expand(-1, -1, n_modalities) * attn_weight.unsqueeze(1).expand(-1, n_modalities, -1)
+        
+        return total_risk, risk_weights, mixing_matrix, attn_norm, risk_norm
 
 
 class MultiModalDynamicModel(nn.Module):
@@ -970,6 +1279,29 @@ class MultiModalDynamicModel(nn.Module):
         self.l_scalers = []
         
         for i, X in enumerate(l_X_INPUTS):
+            
+            # Đảm bảo X chỉ chứa các cột numeric
+            # Nếu X là DataFrame, chỉ lấy các cột numeric
+            if isinstance(X, pd.DataFrame):
+                X = X.select_dtypes(include=[np.number]).values
+            elif isinstance(X, np.ndarray):
+                # Kiểm tra xem có giá trị không phải số không
+                try:
+                    X = X.astype(np.float64)
+                except (ValueError, TypeError):
+                    # Nếu có lỗi, thử convert từng cột
+                    X_clean = []
+                    for col_idx in range(X.shape[1]):
+                        try:
+                            col_data = pd.to_numeric(X[:, col_idx], errors='coerce')
+                            if not col_data.isna().all():
+                                X_clean.append(col_data.values)
+                        except:
+                            pass
+                    if len(X_clean) > 0:
+                        X = np.column_stack(X_clean)
+                    else:
+                        raise ValueError(f"Modality {i} không có cột numeric nào hợp lệ")
             
             if i in self.noscale: 
                 l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float()
@@ -1032,6 +1364,26 @@ class MultiModalDynamicModel(nn.Module):
         arr_MASK   = copy.deepcopy(arr_MASK)
         
         for i, X in enumerate(l_X_INPUTS):
+            # Đảm bảo X chỉ chứa các cột numeric
+            if isinstance(X, pd.DataFrame):
+                X = X.select_dtypes(include=[np.number]).values
+            elif isinstance(X, np.ndarray):
+                try:
+                    X = X.astype(np.float64)
+                except (ValueError, TypeError):
+                    X_clean = []
+                    for col_idx in range(X.shape[1]):
+                        try:
+                            col_data = pd.to_numeric(X[:, col_idx], errors='coerce')
+                            if not col_data.isna().all():
+                                X_clean.append(col_data.values)
+                        except:
+                            pass
+                    if len(X_clean) > 0:
+                        X = np.column_stack(X_clean)
+                    else:
+                        raise ValueError(f"Modality {i} không có cột numeric nào hợp lệ")
+            
             if i in self.noscale: 
                 l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float()
             else:
@@ -1050,6 +1402,26 @@ class MultiModalDynamicModel(nn.Module):
         arr_MASK   = copy.deepcopy(arr_MASK)
         
         for i, X in enumerate(l_X_INPUTS):
+            # Đảm bảo X chỉ chứa các cột numeric
+            if isinstance(X, pd.DataFrame):
+                X = X.select_dtypes(include=[np.number]).values
+            elif isinstance(X, np.ndarray):
+                try:
+                    X = X.astype(np.float64)
+                except (ValueError, TypeError):
+                    X_clean = []
+                    for col_idx in range(X.shape[1]):
+                        try:
+                            col_data = pd.to_numeric(X[:, col_idx], errors='coerce')
+                            if not col_data.isna().all():
+                                X_clean.append(col_data.values)
+                        except:
+                            pass
+                    if len(X_clean) > 0:
+                        X = np.column_stack(X_clean)
+                    else:
+                        raise ValueError(f"Modality {i} không có cột numeric nào hợp lệ")
+            
             if i in self.noscale: 
                 l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float()
             else:
@@ -1071,6 +1443,647 @@ class MultiModalDynamicModel(nn.Module):
         
         return output.detach().numpy(), risk_scores.detach().numpy(), mixing_matrix.detach().numpy(), attention_share.detach().numpy()
 
+
+class MultiModalDynamicModelOvO(nn.Module):
+    """
+    MultiModalDynamicModel với One-Versus-Others Attention Mechanism
+    
+    Tương tự MultiModalDynamicModel nhưng sử dụng AttentionMatrixOvO thay vì AttentionMatrix.
+    """
+    def __init__(self, epochs=100, alpha=1.0, beta=1.0, lr=0.01, hidden_factor = 2, class_weight='balanced', print_on=50, no_scale=[], attention_gate_enabled=True):
+        super(MultiModalDynamicModelOvO, self).__init__()
+        self.epochs  = epochs
+        self.alpha   = alpha
+        self.beta    = beta
+        self.lr      = lr
+        self.class_weight  = class_weight
+        self.print_on = print_on
+        self.noscale=no_scale
+        self.attention_gate_enabled = attention_gate_enabled
+    
+    def response_zscore(self, input, target=None):
+
+        if self.training:
+            threshold = find_optimal_cutoff(target.detach(), input.detach())
+            threshold = torch.tensor(threshold)
+            
+            self.mu  = threshold
+            self.std = input.std(dim=0)
+        else:
+            pass
+
+        return (input - self.mu) / self.std
+        
+    def fit(self, l_X_INPUTS, arr_MASK, vector_Y):
+        self.train()
+        
+        l_X_INPUTS = copy.deepcopy(l_X_INPUTS)
+        arr_MASK   = copy.deepcopy(arr_MASK)
+        vector_Y   = copy.deepcopy(vector_Y)
+                        
+        self.dyam = AttentionMatrixOvO(attention_gate_enabled=self.attention_gate_enabled)
+        self.l_scalers = []
+        
+        for i, X in enumerate(l_X_INPUTS):
+            
+            # Đảm bảo X chỉ chứa các cột numeric
+            # Nếu X là DataFrame, chỉ lấy các cột numeric
+            if isinstance(X, pd.DataFrame):
+                X = X.select_dtypes(include=[np.number]).values
+            elif isinstance(X, np.ndarray):
+                # Kiểm tra xem có giá trị không phải số không
+                try:
+                    X = X.astype(np.float64)
+                except (ValueError, TypeError):
+                    # Nếu có lỗi, thử convert từng cột
+                    X_clean = []
+                    for col_idx in range(X.shape[1]):
+                        try:
+                            col_data = pd.to_numeric(X[:, col_idx], errors='coerce')
+                            if not col_data.isna().all():
+                                X_clean.append(col_data.values)
+                        except:
+                            pass
+                    if len(X_clean) > 0:
+                        X = np.column_stack(X_clean)
+                    else:
+                        raise ValueError(f"Modality {i} không có cột numeric nào hợp lệ")
+            
+            if i in self.noscale: 
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float()
+            else:
+                scaler  = RobustScaler()
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(scaler.fit_transform(X))).float()
+                self.l_scalers.append ( scaler )
+            self.dyam.add_channel (X)
+
+            
+        self.dyam.setup_matrix()
+                
+        mask    = torch.tensor(arr_MASK).float()
+        targets = torch.tensor(vector_Y).float()
+
+        self.criterion = nn.BCEWithLogitsLoss(pos_weight=sum(targets==0) / sum(targets==1))
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+        
+        dataset = MaskedMultiModalLoader (l_X_INPUTS, mask, targets)
+        loader  = DataLoader(dataset, batch_size=256, shuffle=True, drop_last=False )
+        n_batch = len(loader)
+        
+        for i in range(self.epochs + 1):
+            for b_inputs, b_mask, b_labels in loader:
+                self.optimizer.zero_grad()
+
+                output, risk_scores, mixing_matrix, ar2, rr2 = self.dyam(b_inputs, b_mask)
+
+                loss   = self.criterion(output, b_labels)       
+                l2     = self.dyam.get_l2_weight_sum()
+
+                total_loss = (loss + (self.alpha * l2) + (self.beta * ar2)) / n_batch
+                total_loss.backward()
+
+                self.optimizer.step()
+            
+        #  Final fit
+        output, risk_scores, mixing_matrix, ar2, rr2 = self.dyam(l_X_INPUTS, mask)
+
+        return self.response_zscore(output, targets).detach().numpy()
+
+    def get_coefs(self, modality_list, modality_mask):
+        coefs = torch.cat([x.weight.flatten() for x in self.dyam.l_risk_linears], dim=0).flatten().detach().numpy()
+
+        columns = []
+        for i, df in enumerate(modality_list): columns.extend(df.add_prefix("risk___" + modality_mask.columns[i] + '__').columns)
+
+        df_coef = pd.DataFrame([coefs, np.sign(coefs)], columns=columns, index=['coef', 'sign'])
+
+        return df_coef
+
+    def predict_proba(self, l_X_INPUTS, arr_MASK):
+        self.eval()
+        
+        l_X_INPUTS = copy.deepcopy(l_X_INPUTS)
+        arr_MASK   = copy.deepcopy(arr_MASK)
+        
+        for i, X in enumerate(l_X_INPUTS):
+            # Đảm bảo X chỉ chứa các cột numeric
+            if isinstance(X, pd.DataFrame):
+                X = X.select_dtypes(include=[np.number]).values
+            elif isinstance(X, np.ndarray):
+                try:
+                    X = X.astype(np.float64)
+                except (ValueError, TypeError):
+                    X_clean = []
+                    for col_idx in range(X.shape[1]):
+                        try:
+                            col_data = pd.to_numeric(X[:, col_idx], errors='coerce')
+                            if not col_data.isna().all():
+                                X_clean.append(col_data.values)
+                        except:
+                            pass
+                    if len(X_clean) > 0:
+                        X = np.column_stack(X_clean)
+                    else:
+                        raise ValueError(f"Modality {i} không có cột numeric nào hợp lệ")
+            
+            if i in self.noscale: 
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float()
+            else:
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(self.l_scalers[i].transform(X))).float()
+                    
+        mask = torch.tensor(arr_MASK).float()
+        
+        output, risk_scores, mixing_matrix, ar2, rr2 = self.dyam(l_X_INPUTS, mask)
+        
+        return self.response_zscore(output).detach().numpy()
+    
+    def get_summary_scores(self, l_X_INPUTS, arr_MASK):
+        self.eval()
+        
+        l_X_INPUTS = copy.deepcopy(l_X_INPUTS)
+        arr_MASK   = copy.deepcopy(arr_MASK)
+        
+        for i, X in enumerate(l_X_INPUTS):
+            # Đảm bảo X chỉ chứa các cột numeric
+            if isinstance(X, pd.DataFrame):
+                X = X.select_dtypes(include=[np.number]).values
+            elif isinstance(X, np.ndarray):
+                try:
+                    X = X.astype(np.float64)
+                except (ValueError, TypeError):
+                    X_clean = []
+                    for col_idx in range(X.shape[1]):
+                        try:
+                            col_data = pd.to_numeric(X[:, col_idx], errors='coerce')
+                            if not col_data.isna().all():
+                                X_clean.append(col_data.values)
+                        except:
+                            pass
+                    if len(X_clean) > 0:
+                        X = np.column_stack(X_clean)
+                    else:
+                        raise ValueError(f"Modality {i} không có cột numeric nào hợp lệ")
+            
+            if i in self.noscale: 
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float()
+            else:
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(self.l_scalers[i].transform(X))).float()
+                    
+        mask = torch.tensor(arr_MASK).float()
+        
+        share_factor = mask.sum(dim=1, keepdim=True)
+
+        output, risk_scores, mixing_matrix, ar2, rr2 = self.dyam(l_X_INPUTS, mask)
+        
+        # mixing_matrix từ OvO đã là 3D [batch_size, n_modalities, n_modalities]
+        attention_share = share_factor.unsqueeze(2) * mixing_matrix
+        
+        return output.detach().numpy(), risk_scores.detach().numpy(), mixing_matrix.detach().numpy(), attention_share.detach().numpy()
+
+
+class MultiModalDynamicModelOvO_Softmax(nn.Module):
+    """
+    MultiModalDynamicModel với OvO Attention sử dụng Softmax.
+
+    Tương tự `MultiModalDynamicModelOvO` nhưng dùng `AttentionMatrixOvO_Softmax`
+    thay vì `AttentionMatrixOvO` (sigmoid).
+    """
+    def __init__(self, epochs=100, alpha=1.0, beta=1.0, lr=0.01, hidden_factor=2,
+                 class_weight='balanced', print_on=50, no_scale=[], attention_gate_enabled=True):
+        super(MultiModalDynamicModelOvO_Softmax, self).__init__()
+        self.epochs = epochs
+        self.alpha = alpha
+        self.beta = beta
+        self.lr = lr
+        self.class_weight = class_weight
+        self.print_on = print_on
+        self.noscale = no_scale
+        self.attention_gate_enabled = attention_gate_enabled
+
+    def response_zscore(self, input, target=None):
+        if self.training:
+            threshold = find_optimal_cutoff(target.detach(), input.detach())
+            threshold = torch.tensor(threshold)
+            self.mu = threshold
+            self.std = input.std(dim=0)
+        return (input - self.mu) / self.std
+
+    def fit(self, l_X_INPUTS, arr_MASK, vector_Y):
+        self.train()
+        l_X_INPUTS = copy.deepcopy(l_X_INPUTS)
+        arr_MASK = copy.deepcopy(arr_MASK)
+        vector_Y = copy.deepcopy(vector_Y)
+
+        self.dyam = AttentionMatrixOvO_Softmax(attention_gate_enabled=self.attention_gate_enabled)
+        self.l_scalers = []
+
+        for i, X in enumerate(l_X_INPUTS):
+            if isinstance(X, pd.DataFrame):
+                X = X.select_dtypes(include=[np.number]).values
+            elif isinstance(X, np.ndarray):
+                try:
+                    X = X.astype(np.float64)
+                except (ValueError, TypeError):
+                    X_clean = []
+                    for col_idx in range(X.shape[1]):
+                        try:
+                            col_data = pd.to_numeric(X[:, col_idx], errors='coerce')
+                            if not col_data.isna().all():
+                                X_clean.append(col_data.values)
+                        except Exception:
+                            pass
+                    if len(X_clean) > 0:
+                        X = np.column_stack(X_clean)
+                    else:
+                        raise ValueError(f"Modality {i} không có cột numeric nào hợp lệ")
+
+            if i in self.noscale:
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float()
+            else:
+                scaler = RobustScaler()
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(scaler.fit_transform(X))).float()
+                self.l_scalers.append(scaler)
+            self.dyam.add_channel(X)
+
+        self.dyam.setup_matrix()
+        mask = torch.tensor(arr_MASK).float()
+        targets = torch.tensor(vector_Y).float()
+
+        self.criterion = nn.BCEWithLogitsLoss(pos_weight=sum(targets == 0) / sum(targets == 1))
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+
+        dataset = MaskedMultiModalLoader(l_X_INPUTS, mask, targets)
+        loader = DataLoader(dataset, batch_size=256, shuffle=True, drop_last=False)
+        n_batch = len(loader)
+
+        for _ in range(self.epochs + 1):
+            for b_inputs, b_mask, b_labels in loader:
+                self.optimizer.zero_grad()
+                output, risk_scores, mixing_matrix, ar2, rr2 = self.dyam(b_inputs, b_mask)
+                loss = self.criterion(output, b_labels)
+                l2 = self.dyam.get_l2_weight_sum()
+                total_loss = (loss + (self.alpha * l2) + (self.beta * ar2)) / n_batch
+                total_loss.backward()
+                self.optimizer.step()
+
+        output, risk_scores, mixing_matrix, ar2, rr2 = self.dyam(l_X_INPUTS, mask)
+        return self.response_zscore(output, targets).detach().numpy()
+
+    def get_coefs(self, modality_list, modality_mask):
+        coefs = torch.cat([x.weight.flatten() for x in self.dyam.l_risk_linears], dim=0).flatten().detach().numpy()
+        columns = []
+        for i, df in enumerate(modality_list):
+            columns.extend(df.add_prefix("risk___" + modality_mask.columns[i] + '__').columns)
+        df_coef = pd.DataFrame([coefs, np.sign(coefs)], columns=columns, index=['coef', 'sign'])
+        return df_coef
+
+    def predict_proba(self, l_X_INPUTS, arr_MASK):
+        self.eval()
+        l_X_INPUTS = copy.deepcopy(l_X_INPUTS)
+        arr_MASK = copy.deepcopy(arr_MASK)
+
+        for i, X in enumerate(l_X_INPUTS):
+            if isinstance(X, pd.DataFrame):
+                X = X.select_dtypes(include=[np.number]).values
+            elif isinstance(X, np.ndarray):
+                try:
+                    X = X.astype(np.float64)
+                except (ValueError, TypeError):
+                    X_clean = []
+                    for col_idx in range(X.shape[1]):
+                        try:
+                            col_data = pd.to_numeric(X[:, col_idx], errors='coerce')
+                            if not col_data.isna().all():
+                                X_clean.append(col_data.values)
+                        except Exception:
+                            pass
+                    if len(X_clean) > 0:
+                        X = np.column_stack(X_clean)
+                    else:
+                        raise ValueError(f"Modality {i} không có cột numeric nào hợp lệ")
+
+            if i in self.noscale:
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float()
+            else:
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(self.l_scalers[i].transform(X))).float()
+
+        mask = torch.tensor(arr_MASK).float()
+        output, risk_scores, mixing_matrix, ar2, rr2 = self.dyam(l_X_INPUTS, mask)
+        return self.response_zscore(output).detach().numpy()
+
+    def get_summary_scores(self, l_X_INPUTS, arr_MASK):
+        self.eval()
+        l_X_INPUTS = copy.deepcopy(l_X_INPUTS)
+        arr_MASK = copy.deepcopy(arr_MASK)
+
+        for i, X in enumerate(l_X_INPUTS):
+            if isinstance(X, pd.DataFrame):
+                X = X.select_dtypes(include=[np.number]).values
+            elif isinstance(X, np.ndarray):
+                try:
+                    X = X.astype(np.float64)
+                except (ValueError, TypeError):
+                    X_clean = []
+                    for col_idx in range(X.shape[1]):
+                        try:
+                            col_data = pd.to_numeric(X[:, col_idx], errors='coerce')
+                            if not col_data.isna().all():
+                                X_clean.append(col_data.values)
+                        except Exception:
+                            pass
+                    if len(X_clean) > 0:
+                        X = np.column_stack(X_clean)
+                    else:
+                        raise ValueError(f"Modality {i} không có cột numeric nào hợp lệ")
+
+            if i in self.noscale:
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float()
+            else:
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(self.l_scalers[i].transform(X))).float()
+
+        mask = torch.tensor(arr_MASK).float()
+        share_factor = mask.sum(dim=1, keepdim=True)
+        output, risks, attentions, _, _ = self.dyam(l_X_INPUTS, mask)
+        attention_share = share_factor * attentions
+        return output.detach().numpy(), risks.detach().numpy(), attentions.detach().numpy(), attention_share.detach().numpy()
+
+
+class GatedMultimodalUnitFusion(nn.Module):
+    def __init__(self, num_modalities, encoded_feature_dim):
+        super().__init__()
+        self.num_modalities = num_modalities
+        self.gating_networks = nn.ModuleList()
+
+        for _ in range(num_modalities):
+            self.gating_networks.append(
+                nn.Sequential(
+                    nn.Linear(encoded_feature_dim, 1),
+                    nn.Sigmoid()
+                )
+            )
+
+    def forward(self, encoded_features, individual_risk_predictors):
+        gated_risks = []
+        all_gate_values = []
+
+        for i in range(self.num_modalities):
+            h_i = encoded_features[i]
+
+            gate_value_i = self.gating_networks[i](h_i)
+            all_gate_values.append(gate_value_i)
+
+            gated_h_i = gate_value_i * h_i
+
+            risk_i = individual_risk_predictors[i](gated_h_i)
+            gated_risks.append(risk_i)
+
+        total_risk = torch.sum(torch.cat(gated_risks, dim=1), dim=1)
+
+        risk_weights_output = torch.cat(gated_risks, dim=1)
+        attn_weight_output = torch.cat(all_gate_values, dim=1)
+
+        attn_norm_val = torch.tensor(0.0, device=total_risk.device)
+        for gate_net in self.gating_networks:
+            for param in gate_net.parameters():
+                if param.requires_grad:
+                    attn_norm_val += param.norm(p=2)
+
+        risk_norm_val = torch.tensor(0.0, device=total_risk.device)
+        for risk_pred in individual_risk_predictors:
+            for param in risk_pred.parameters():
+                if param.requires_grad:
+                    risk_norm_val += param.norm(p=2)
+
+        # Return gate values (attentions) directly for downstream summary/visualization.
+        # Shapes:
+        # - total_risk: (batch,)
+        # - risk_weights_output: (batch, n_modalities)
+        # - attn_weight_output (gate values): (batch, n_modalities)
+        return total_risk, risk_weights_output, attn_weight_output, attn_norm_val, risk_norm_val
+
+
+class MultiModalDynamicModelGMU(nn.Module):
+    def __init__(self, epochs=100, alpha=1.0, beta=1.0, lr=0.01, hidden_dims=16,
+                 class_weight='balanced', print_on=50, no_scale=[], attention_gate_enabled=True):
+        super(MultiModalDynamicModelGMU, self).__init__()
+        self.epochs  = epochs
+        self.alpha   = alpha
+        self.beta    = beta
+        self.lr      = lr
+        self.class_weight  = class_weight
+        self.print_on = print_on
+        self.noscale=no_scale
+        self.attention_gate_enabled = attention_gate_enabled
+        self.hidden_dims = hidden_dims
+
+        self.feature_encoders = nn.ModuleList()
+        self.risk_predictors = nn.ModuleList()
+        self.num_modalities = 0
+        self.l_scalers = []
+        self.gmu_fusion_module = None
+
+    def response_zscore(self, input, target=None):
+        if self.training:
+            threshold = find_optimal_cutoff(target.detach(), input.detach())
+            threshold = torch.tensor(threshold)
+            self.mu  = threshold
+            self.std = input.std(dim=0)
+        return (input - self.mu) / self.std
+
+    def fit(self, l_X_INPUTS, arr_MASK, vector_Y):
+        self.train()
+
+        l_X_INPUTS = copy.deepcopy(l_X_INPUTS)
+        arr_MASK   = copy.deepcopy(arr_MASK)
+        vector_Y   = copy.deepcopy(vector_Y)
+
+        self.num_modalities = len(l_X_INPUTS)
+
+        self.feature_encoders = nn.ModuleList()
+        self.risk_predictors = nn.ModuleList()
+        self.l_scalers = []
+
+        for i, X_modality_raw in enumerate(l_X_INPUTS):
+            if isinstance(X_modality_raw, pd.DataFrame):
+                X_cleaned = X_modality_raw.select_dtypes(include=[np.number]).values
+            elif isinstance(X_modality_raw, np.ndarray):
+                try:
+                    X_cleaned = X_modality_raw.astype(np.float64)
+                except (ValueError, TypeError):
+                    X_clean_cols = []
+                    for col_idx in range(X_modality_raw.shape[1]):
+                        try:
+                            col_data = pd.to_numeric(X_modality_raw[:, col_idx], errors='coerce')
+                            if not col_data.isna().all():
+                                X_clean_cols.append(col_data.values)
+                        except:
+                            pass
+                    if len(X_clean_cols) > 0:
+                        X_cleaned = np.column_stack(X_clean_cols)
+                    else:
+                        raise ValueError(f"Modality {i} has no valid numeric columns after cleaning.")
+            else:
+                raise ValueError(f"Unsupported input type for modality {i}: {type(X_modality_raw)}")
+
+            if i in self.noscale: 
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X_cleaned)).float()
+                input_dim = X_cleaned.shape[1]
+            else:
+                scaler  = RobustScaler()
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(scaler.fit_transform(X_cleaned))).float()
+                self.l_scalers.append ( scaler )
+                input_dim = X_cleaned.shape[1]
+
+            self.feature_encoders.append(
+                nn.Sequential(
+                    nn.Linear(input_dim, self.hidden_dims),
+                    nn.ReLU(),
+                    nn.Dropout(0.5) 
+                )
+            )
+            self.risk_predictors.append(
+                nn.Linear(self.hidden_dims, 1)
+            )
+
+        self.gmu_fusion_module = GatedMultimodalUnitFusion(self.num_modalities, self.hidden_dims)
+
+        mask    = torch.tensor(arr_MASK).float()
+        targets = torch.tensor(vector_Y).float()
+
+        self.criterion = nn.BCEWithLogitsLoss(pos_weight=sum(targets==0) / sum(targets==1))
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+
+        dataset = MaskedMultiModalLoader (l_X_INPUTS, mask, targets)
+        loader  = DataLoader(dataset, batch_size=256, shuffle=True, drop_last=False )
+        n_batch = len(loader)
+
+        for i in range(self.epochs + 1):
+            for b_inputs, b_mask, b_labels in loader:
+                self.optimizer.zero_grad()
+
+                output, risk_scores_output, gate_values, attn_norm_val, risk_norm_val = self.forward(b_inputs)
+
+                loss   = self.criterion(output, b_labels)       
+                l2     = self.get_l2_weight_sum()
+
+                total_loss = (loss + (self.alpha * l2) + (self.beta * attn_norm_val) + (self.beta * risk_norm_val)) / n_batch
+                total_loss.backward()
+
+                self.optimizer.step()
+
+        output, risk_scores_output, gate_values, _, _ = self.forward(l_X_INPUTS)
+
+        return self.response_zscore(output, targets).detach().numpy()
+
+    def get_l2_weight_sum(self):
+        l2_sum = torch.tensor(0.0, device=next(self.parameters()).device)
+        for param in self.parameters():
+            if param.requires_grad:
+                l2_sum += param.norm(p=2)
+        return l2_sum
+
+    def forward(self, x):
+        encoded_features = []
+        for i in range(self.num_modalities):
+            encoded_features.append(self.feature_encoders[i](x[i]))
+
+        total_risk, risk_weights_output, gate_values, attn_norm_val, risk_norm_val = self.gmu_fusion_module(
+            encoded_features, self.risk_predictors
+        )
+
+        return total_risk, risk_weights_output, gate_values, attn_norm_val, risk_norm_val
+
+    def get_coefs(self, modality_list, modality_mask):
+        coefs = []
+        columns = []
+        for i, risk_pred_linear in enumerate(self.risk_predictors):
+            coefs.extend(risk_pred_linear.weight.flatten().detach().cpu().numpy())
+            columns.extend([f"risk___{modality_mask.columns[i]}__hidden_feat_{j}" for j in range(self.hidden_dims)])
+
+        df_coef = pd.DataFrame([coefs, np.sign(coefs)], columns=columns, index=['coef', 'sign'])
+        return df_coef
+
+    def predict_proba(self, l_X_INPUTS, arr_MASK):
+        self.eval()
+
+        l_X_INPUTS = copy.deepcopy(l_X_INPUTS)
+        arr_MASK   = copy.deepcopy(arr_MASK)
+
+        for i, X_modality_raw in enumerate(l_X_INPUTS):
+            if isinstance(X_modality_raw, pd.DataFrame):
+                X_cleaned = X_modality_raw.select_dtypes(include=[np.number]).values
+            elif isinstance(X_modality_raw, np.ndarray):
+                try:
+                    X_cleaned = X_modality_raw.astype(np.float64)
+                except (ValueError, TypeError):
+                    X_clean_cols = []
+                    for col_idx in range(X_modality_raw.shape[1]):
+                        try:
+                            col_data = pd.to_numeric(X_modality_raw[:, col_idx], errors='coerce')
+                            if not col_data.isna().all():
+                                X_clean_cols.append(col_data.values)
+                        except:
+                            pass
+                    if len(X_clean_cols) > 0:
+                        X_cleaned = np.column_stack(X_clean_cols)
+                    else:
+                        raise ValueError(f"Modality {i} has no valid numeric columns after cleaning.")
+            else:
+                raise ValueError(f"Unsupported input type for modality {i}: {type(X_modality_raw)}")
+
+            if i in self.noscale: 
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X_cleaned)).float()
+            else:
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(self.l_scalers[i].transform(X_cleaned))).float()
+
+        mask = torch.tensor(arr_MASK).float()
+
+        output, _, _, _, _ = self.forward(l_X_INPUTS)
+
+        return self.response_zscore(output).detach().numpy()
+
+    def get_summary_scores(self, l_X_INPUTS, arr_MASK):
+        self.eval()
+
+        l_X_INPUTS = copy.deepcopy(l_X_INPUTS)
+        arr_MASK   = copy.deepcopy(arr_MASK)
+
+        for i, X_modality_raw in enumerate(l_X_INPUTS):
+            if isinstance(X_modality_raw, pd.DataFrame):
+                X_cleaned = X_modality_raw.select_dtypes(include=[np.number]).values
+            elif isinstance(X_modality_raw, np.ndarray):
+                try:
+                    X_cleaned = X_modality_raw.astype(np.float64)
+                except (ValueError, TypeError):
+                    X_clean_cols = []
+                    for col_idx in range(X_modality_raw.shape[1]):
+                        try:
+                            col_data = pd.to_numeric(X_modality_raw[:, col_idx], errors='coerce')
+                            if not col_data.isna().all():
+                                X_clean_cols.append(col_data.values)
+                        except:
+                            pass
+                    if len(X_clean_cols) > 0:
+                        X_cleaned = np.column_stack(X_clean_cols)
+                    else:
+                        raise ValueError(f"Modality {i} has no valid numeric columns after cleaning.")
+            else:
+                raise ValueError(f"Unsupported input type for modality {i}: {type(X_modality_raw)}")
+
+            if i in self.noscale: 
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X_cleaned)).float()
+            else:
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(self.l_scalers[i].transform(X_cleaned))).float()
+
+        mask = torch.tensor(arr_MASK).float()
+
+        share_factor = mask.sum(dim=1, keepdim=True)
+
+        output, risks, attentions, _, _ = self.forward(l_X_INPUTS)
+
+        attention_share = share_factor * attentions 
+
+        return output.detach().numpy(), risks.detach().numpy(), attentions.detach().numpy(), attention_share.detach().numpy()
 def get_summary_df(d_summarys):
     df = pd.DataFrame(d_summarys).T.dropna()
     df['score_norm'] = (df['score'] - df['score'].min()) / (df['score'].max() - df['score'].min())
@@ -1384,6 +2397,44 @@ def generate_l1_plot(modality_list_in, modality_mask, outcomes, pos, filter, fol
         df = l1_filter_features_list(modality_list, filter['l1_selection_df'], outcomes, valid_px, pos, **filter['kwargs'])
         
 def train(modality_list_in, modality_mask, outcomes, l1_dfs_filter, model_params, folds=10):
+#     Hàm train này dùng để huấn luyện mô hình đa nguồn (MultiModalDynamicModel) với kiểm định chéo (cross-validation) trên nhiều loại đặc trưng (modality) cùng lúc. Giải thích từng bước:
+
+# Khởi tạo biến lưu kết quả:
+
+# l_v_scores, l_v_labels: lưu điểm dự đoán và nhãn thực tế cho từng mẫu ở các fold.
+# d_summarys_all: dictionary lưu thông tin chi tiết cho từng mẫu (nhãn, điểm dự đoán, fold, risk, attention, share).
+# df_coef_agg: tổng hợp hệ số mô hình của từng fold.
+# Thiết lập số fold:
+
+# Nếu folds là 'LOO' (Leave-One-Out), số fold bằng số mẫu.
+# Thiết lập kiểm định chéo:
+
+# Tạo đối tượng KFold để chia dữ liệu thành các fold.
+# Lặp qua từng fold kiểm định chéo:
+
+# Tạo bản sao của danh sách DataFrame đặc trưng cho từng modality.
+# Chia dữ liệu thành tập huấn luyện (train_px) và kiểm tra (valid_px).
+# Áp dụng bộ lọc đặc trưng (nếu có) cho từng modality bằng hàm l1_filter_features_list.
+# Trích xuất đặc trưng, mask, và nhãn cho tập huấn luyện và kiểm tra.
+# Huấn luyện mô hình:
+
+# Khởi tạo mô hình MultiModalDynamicModel với các tham số truyền vào.
+# Huấn luyện mô hình trên dữ liệu huấn luyện.
+# Lấy hệ số mô hình và tổng hợp vào df_coef_agg.
+# Dự đoán và lưu kết quả:
+
+# Dự đoán điểm xác suất cho tập kiểm tra.
+# Lưu điểm dự đoán và nhãn thực tế.
+# Lấy các giá trị risk, attention, share cho từng modality và lưu vào d_summarys_all cho từng mẫu.
+# Tính AUC và khoảng tin cậy:
+
+# Nếu có cả hai lớp (0 và 1) trong nhãn, tính AUC và khoảng tin cậy bằng hàm auc_roc_ci.
+# In ra kết quả AUC cho fold cuối cùng.
+# Trả về kết quả:
+
+# Trả về DataFrame tổng hợp kết quả dự đoán và DataFrame tổng hợp hệ số mô hình cho các fold.
+# Ý nghĩa:
+# Hàm này giúp huấn luyện và đánh giá mô hình đa nguồn với kiểm định chéo, đồng thời kiểm soát việc chọn lọc đặc trưng cho từng modality, lưu lại hệ số mô hình và kết quả dự đoán chi tiết (bao gồm risk, attention, share) cho từng mẫu. Phù hợp cho các bài toán phân tích dữ liệu y học đa nguồn, nơi cần kiểm tra độ ổn định và ý nghĩa của từng đặc trưng.
     l_v_scores = []
     l_v_labels = []
     d_summarys_all = {}
@@ -1449,8 +2500,225 @@ def train(modality_list_in, modality_mask, outcomes, l1_dfs_filter, model_params
     return get_summary_df(d_summarys_all), df_coef_agg
 
 
-      
-def train_subsample(modality_list_in, modality_mask, outcomes, l1_dfs_filter, model_params, folds=10):
+def train_ovo(modality_list_in, modality_mask, outcomes, l1_dfs_filter, model_params, folds=10):
+    """
+    Hàm train với mô hình OvO (One-Versus-Others) Attention
+    
+    Tương tự hàm train() nhưng sử dụng MultiModalDynamicModelOvO thay vì MultiModalDynamicModel.
+    """
+    l_v_scores = []
+    l_v_labels = []
+    d_summarys_all = {}
+
+    if folds=='LOO':
+        folds=len(outcomes.index)
+
+    df_coef_agg = pd.DataFrame()
+
+    kf = KFold(n_splits=folds, random_state=0, shuffle=True)
+    for fold, (train, test) in enumerate(tqdm(list(kf.split(outcomes.index)), file=sys.stdout)):
+        
+        modality_list = [df.copy(deep=True) for df in modality_list_in]
+
+        train_px = outcomes.index[train]
+        valid_px  = outcomes.index[test]
+
+        for pos, filter in l1_dfs_filter.items():
+            l1_filter_features_list(modality_list, filter['l1_selection_df'], outcomes, valid_px, pos, **filter['kwargs'])
+
+        train_feature_inputs = [df.loc[train_px].values for df in modality_list]
+        valid_feature_inputs = [df.loc[valid_px].values for df in modality_list]
+
+        train_feature_mask   = modality_mask.loc[train_px].astype(int).values
+        valid_feature_mask   = modality_mask.loc[valid_px].astype(int).values
+        
+        train_labels = outcomes.loc[train_px, 'label']
+        valid_labels = outcomes.loc[valid_px, 'label'].values
+
+        # Loại bỏ cross_modality_enabled vì MultiModalDynamicModelOvO không hỗ trợ
+        model_params_ovo = {k: v for k, v in model_params.items() if k != 'cross_modality_enabled'}
+        clf    = MultiModalDynamicModelOvO(**model_params_ovo)
+        scores = clf.fit(train_feature_inputs, train_feature_mask, train_labels)
+
+        df_coef = clf.get_coefs(modality_list, modality_mask)
+
+        df_coef_agg = pd.concat([df_coef_agg, df_coef])
+
+        
+        valid_scores = clf.predict_proba(valid_feature_inputs, valid_feature_mask)
+            
+        l_v_scores.extend(valid_scores)
+        l_v_labels.extend(valid_labels)
+        
+        score, risks, attentions, shares = clf.get_summary_scores(valid_feature_inputs, valid_feature_mask)
+
+        for idx, px in enumerate(valid_px):
+            d_summarys_all[px] = {}
+
+            d_summarys_all[px]['label'] = valid_labels[idx]
+            d_summarys_all[px]['score'] = valid_scores[idx]
+            d_summarys_all[px]['fold'] = fold
+        
+            for i,risk in enumerate(risks[idx]):
+                d_summarys_all[px][f'risk_{modality_mask.columns[i]}'] = risk
+            for i,attn in enumerate(attentions[idx]):
+                d_summarys_all[px][f'attn_{modality_mask.columns[i]}'] = attn
+            for i,share in enumerate(shares[idx]):
+                d_summarys_all[px][f'share_{modality_mask.columns[i]}'] = share 
+            
+        if 1.0 in l_v_labels and 0.0 in l_v_labels:
+            auc, ci = auc_roc_ci(l_v_labels, l_v_scores, 0.95)
+    print ("OvO Fold [{0}] AUC = {1:.3f} +/- {2:.3f} 95% CL".format(fold + 1, auc, (ci[1] - ci[0]) / 2.0) )
+    
+    return get_summary_df(d_summarys_all), df_coef_agg
+
+
+def train_ovo_softmax(modality_list_in, modality_mask, outcomes, l1_dfs_filter, model_params, folds=10):
+    """
+    Hàm train với mô hình OvO Softmax (One-Versus-Others với Softmax).
+
+    Tương tự `train_ovo()` nhưng sử dụng `MultiModalDynamicModelOvO_Softmax`
+    thay vì `MultiModalDynamicModelOvO` (sigmoid).
+    """
+    l_v_scores = []
+    l_v_labels = []
+    d_summarys_all = {}
+
+    if folds == 'LOO':
+        folds = len(outcomes.index)
+
+    df_coef_agg = pd.DataFrame()
+
+    kf = KFold(n_splits=folds, shuffle=True, random_state=42)
+    for fold, (train, test) in enumerate(tqdm(list(kf.split(outcomes.index)), file=sys.stdout)):
+        modality_list = [df.copy(deep=True) for df in modality_list_in]
+
+        train_px = outcomes.index[train]
+        valid_px = outcomes.index[test]
+
+        for pos, filter in l1_dfs_filter.items():
+            l1_filter_features_list(modality_list, filter['l1_selection_df'], outcomes, valid_px, pos, **filter['kwargs'])
+
+        if any(len(modality_df.columns) == 0 for modality_df in modality_list):
+            continue
+
+        train_feature_inputs = [df.loc[train_px].values for df in modality_list]
+        valid_feature_inputs = [df.loc[valid_px].values for df in modality_list]
+
+        train_feature_mask = modality_mask.loc[train_px].astype(int).values
+        valid_feature_mask = modality_mask.loc[valid_px].astype(int).values
+
+        train_labels = outcomes.loc[train_px, 'label']
+        valid_labels = outcomes.loc[valid_px, 'label'].values
+
+        model_params_ovo = {k: v for k, v in model_params.items() if k != 'cross_modality_enabled'}
+        clf = MultiModalDynamicModelOvO_Softmax(**model_params_ovo)
+        _ = clf.fit(train_feature_inputs, train_feature_mask, train_labels)
+
+        valid_scores = clf.predict_proba(valid_feature_inputs, valid_feature_mask)
+        risks, attentions, shares, _ = clf.get_summary_scores(valid_feature_inputs, valid_feature_mask)
+
+        df_coef = pd.DataFrame(clf.get_coefs(modality_list, modality_mask))
+        df_coef_agg = pd.concat([df_coef_agg, df_coef])
+
+        if 1.0 in valid_labels and 0.0 in valid_labels:
+            auc, ci = auc_roc_ci(valid_labels, valid_scores, 0.95)
+            print("Fold [%d] OvO Softmax AUC = %.3f +/- %.3f 95%% CL" %
+                  (fold + 1, auc, (ci[1] - ci[0]) / 2.0))
+
+        l_v_scores.extend(valid_scores)
+        l_v_labels.extend(valid_labels)
+
+        for px, score, label, risk, attn, share in zip(valid_px, valid_scores, valid_labels, risks, attentions, shares):
+            d_summarys_all[px] = {
+                'label': label,
+                'score': score,
+                'fold': fold + 1,
+                'risk': risk,
+                'attention': attn,
+                'share': share,
+            }
+
+    return get_summary_df(d_summarys_all), df_coef_agg
+
+
+def train_gmu(modality_list_in, modality_mask, outcomes, l1_dfs_filter, model_params, folds=10):
+    """
+    Train function for GMU (Gated Multimodal Units).
+
+    Tương tự `train_ovo_softmax()` nhưng sử dụng `MultiModalDynamicModelGMU`.
+    Trong GMU:
+    - `attentions` là **gate values** (sigmoid) cho từng modality (batch, n_modalities)
+    - `shares` = gate values * số modality hiện diện (share_factor)
+    """
+    l_v_scores = []
+    l_v_labels = []
+    d_summarys_all = {}
+
+    if folds == 'LOO':
+        folds = len(outcomes.index)
+
+    df_coef_agg = pd.DataFrame()
+
+    kf = KFold(n_splits=folds, shuffle=True, random_state=42)
+    for fold, (train, test) in enumerate(tqdm(list(kf.split(outcomes.index)), file=sys.stdout)):
+        modality_list = [df.copy(deep=True) for df in modality_list_in]
+
+        train_px = outcomes.index[train]
+        valid_px = outcomes.index[test]
+
+        for pos, filter in l1_dfs_filter.items():
+            l1_filter_features_list(modality_list, filter['l1_selection_df'], outcomes, valid_px, pos, **filter['kwargs'])
+
+        if any(len(modality_df.columns) == 0 for modality_df in modality_list):
+            continue
+
+        train_feature_inputs = [df.loc[train_px].values for df in modality_list]
+        valid_feature_inputs = [df.loc[valid_px].values for df in modality_list]
+
+        train_feature_mask = modality_mask.loc[train_px].astype(int).values
+        valid_feature_mask = modality_mask.loc[valid_px].astype(int).values
+
+        train_labels = outcomes.loc[train_px, 'label']
+        valid_labels = outcomes.loc[valid_px, 'label'].values
+
+        model_params_gmu = {k: v for k, v in model_params.items() if k != 'cross_modality_enabled'}
+        clf = MultiModalDynamicModelGMU(**model_params_gmu)
+        _ = clf.fit(train_feature_inputs, train_feature_mask, train_labels)
+
+        valid_scores = clf.predict_proba(valid_feature_inputs, valid_feature_mask)
+        output, risks, attentions, shares = clf.get_summary_scores(valid_feature_inputs, valid_feature_mask)
+
+        df_coef = pd.DataFrame(clf.get_coefs(modality_list, modality_mask))
+        df_coef_agg = pd.concat([df_coef_agg, df_coef])
+
+        if 1.0 in valid_labels and 0.0 in valid_labels:
+            auc, ci = auc_roc_ci(valid_labels, valid_scores, 0.95)
+            print("Fold [%d] GMU AUC = %.3f +/- %.3f 95%% CL" %
+                  (fold + 1, auc, (ci[1] - ci[0]) / 2.0))
+
+        l_v_scores.extend(valid_scores)
+        l_v_labels.extend(valid_labels)
+
+        for px, score, label, risk, attn, share in zip(valid_px, valid_scores, valid_labels, risks, attentions, shares):
+            d_summarys_all[px] = {
+                'label': label,
+                'score': score,
+                'fold': fold + 1,
+                'risk': risk,
+                'attention': attn,
+                'share': share,
+            }
+
+    return get_summary_df(d_summarys_all), df_coef_agg
+
+def train_subsample_ovo(modality_list_in, modality_mask, outcomes, l1_dfs_filter, model_params, folds=10):
+    """
+    Hàm train_subsample với mô hình OvO (One-Versus-Others) Attention
+    
+    Tương tự train_subsample() nhưng sử dụng MultiModalDynamicModelOvO thay vì MultiModalDynamicModel.
+    Sử dụng ShuffleSplit để chia dữ liệu ngẫu nhiên 20 lần với test_size=0.1.
+    """
     if folds=='LOO':
         folds=len(outcomes.index)
 
@@ -1483,7 +2751,9 @@ def train_subsample(modality_list_in, modality_mask, outcomes, l1_dfs_filter, mo
         train_labels = outcomes.loc[train_px, 'label']
         valid_labels = outcomes.loc[valid_px, 'label'].values
 
-        clf    = MultiModalDynamicModel(**model_params)
+        # Loại bỏ cross_modality_enabled vì MultiModalDynamicModelOvO không hỗ trợ
+        model_params_ovo = {k: v for k, v in model_params.items() if k != 'cross_modality_enabled'}
+        clf    = MultiModalDynamicModelOvO(**model_params_ovo)
         scores = clf.fit(train_feature_inputs, train_feature_mask, train_labels)
         
         valid_scores = clf.predict_proba(valid_feature_inputs, valid_feature_mask)
@@ -1492,11 +2762,8 @@ def train_subsample(modality_list_in, modality_mask, outcomes, l1_dfs_filter, mo
             auc, ci = auc_roc_ci(valid_labels, valid_scores, 0.95)
             l_aucs_res.append ( ( auc, ci, valid_scores, valid_labels) )
     
-    print (np.array(l_aucs_res)[:, 0].mean())
+    print (f"OvO Subsample - Mean AUC: {np.array(l_aucs_res)[:, 0].mean():.4f}")
     return l_aucs_res
-
-
-
 
 
 def train_eval_all(modality_list_in, modality_mask, outcomes, l1_dfs_filter, model_params, train_px, valid_px):
@@ -1559,6 +2826,10 @@ def average_models(summary_dfs_in, models_to_average):
     l_df_label = [summary_dfs_in[model][['label']] for model in models_to_average]
     df_label = pd.concat(l_df_label, axis=1).mean(axis=1).rename('label')
 
+    # Calculate average AUC
+    l_df_auc = [summary_dfs_in[model][['auc']] for model in models_to_average]
+    df_auc = pd.concat(l_df_auc, axis=1).mean(axis=1).rename('auc')
+
     dfs_mock_mods = []
     for model in models_to_average:
         df_mod = summary_dfs_in[model][['score']].rename(columns={'score':f'risk_{model.lower()}'})
@@ -1567,7 +2838,7 @@ def average_models(summary_dfs_in, models_to_average):
         
     df_mock_mod = pd.concat(dfs_mock_mods, axis=1).fillna(0)
 
-    df = pd.concat([df_score, df_label, df_mock_mod], axis=1)
+    df = pd.concat([df_score, df_label, df_auc, df_mock_mod], axis=1)
 
     df['score_norm'] = (df['score'] - df['score'].min()) / (df['score'].max() - df['score'].min())
     df['error'] = abs(df['label'] - df['score_norm'])
@@ -1931,12 +3202,23 @@ def train_LR(df, outcomes, filter=None, n_splits=10, cv_index=None, label_col='l
     for fold, (train, test) in enumerate(tqdm(list(kf.split( cv_index )), file=sys.stdout)):
         
         modality_df = df.copy(deep=True)
+        # Ensure numeric-only features and handle non-numeric gracefully
+        try:
+            modality_df = clean_data_for_xgboost(modality_df)
+        except Exception:
+            # Fallback to selecting numeric columns only
+            modality_df = modality_df.select_dtypes(include=[np.number])
 
         train_px = cv_index[train]
         valid_px  = cv_index[test]
 
         if filter is not None:
             modality_df  = l1_filter_features_df(modality_df, filter['l1_selection_df'], outcomes, valid_px, **filter['kwargs'])
+
+        # Impute missing values with median per column (using training medians only)
+        modality_df = modality_df.replace([np.inf, -np.inf], np.nan)
+        train_medians = modality_df.loc[train_px].median()
+        modality_df = modality_df.fillna(train_medians)
 
         n_features.append(len(modality_df.columns)) 
 
@@ -1963,12 +3245,19 @@ def train_LR(df, outcomes, filter=None, n_splits=10, cv_index=None, label_col='l
         l_v_scores.extend(valid_scores)
         l_v_labels.extend(valid_labels)
         
+        # Calculate AUC for this fold
+        if 1.0 in valid_labels and 0.0 in valid_labels:
+            fold_auc, _ = auc_roc_ci(valid_labels, valid_scores, 0.95)
+        else:
+            fold_auc = 0.5  # Default AUC if no positive/negative samples
+        
         for idx, px in enumerate(valid_px):
             d_summarys_all[px] = {}
 
             d_summarys_all[px]['label'] = valid_labels[idx]
             d_summarys_all[px]['score'] = valid_scores[idx]
             d_summarys_all[px]['fold'] = fold
+            d_summarys_all[px]['auc'] = fold_auc
 
             
         if 1.0 in l_v_labels and 0.0 in l_v_labels:
@@ -1977,6 +3266,827 @@ def train_LR(df, outcomes, filter=None, n_splits=10, cv_index=None, label_col='l
     print ("Avg N features:", np.mean(n_features))
 
     return get_summary_df(d_summarys_all), df_coef_agg
+
+
+def train_XGBoost(df, outcomes, filter=None, n_splits=10, cv_index=None, label_col='label', 
+                  feature_engineering=True, early_stopping_rounds=50):
+    """
+    Train XGBoost model with advanced feature engineering for multi-modal data
+    
+    Parameters:
+    -----------
+    df : pd.DataFrame
+        Feature matrix
+    outcomes : pd.DataFrame
+        Target labels
+    filter : dict, optional
+        Feature selection filter
+    n_splits : int
+        Number of CV folds
+    cv_index : array-like, optional
+        Custom CV indices
+    label_col : str
+        Label column name
+    feature_engineering : bool
+        Whether to apply feature engineering
+    early_stopping_rounds : int
+        Early stopping rounds for XGBoost
+    
+    Returns:
+    --------
+    summary_df : pd.DataFrame
+        Cross-validation results
+    feature_importance_df : pd.DataFrame
+        Feature importance scores
+    """
+    try:
+        import xgboost as xgb
+        XGBOOST_AVAILABLE = True
+    except ImportError:
+        print("Warning: XGBoost not installed. Using Random Forest as alternative.")
+        XGBOOST_AVAILABLE = False
+        from sklearn.ensemble import RandomForestClassifier
+    
+    from sklearn.preprocessing import StandardScaler, PowerTransformer
+    from sklearn.feature_selection import SelectKBest, f_classif
+    from sklearn.decomposition import PCA
+    
+    l_v_scores = []
+    l_v_labels = []
+    d_summarys_all = {}
+    feature_importance_list = []
+
+    if cv_index is None:
+        cv_index = outcomes.index
+
+    kf = KFold(n_splits=n_splits, random_state=0, shuffle=True)
+    n_features = []
+
+    for fold, (train, test) in enumerate(tqdm(list(kf.split(cv_index)), file=sys.stdout)):
+        
+        modality_df = df.copy(deep=True)
+        train_px = cv_index[train]
+        valid_px = cv_index[test]
+
+        # Apply feature selection if filter provided
+        if filter is not None:
+            modality_df = l1_filter_features_df(modality_df, filter['l1_selection_df'], 
+                                              outcomes, valid_px, **filter['kwargs'])
+
+        # Feature Engineering
+        if feature_engineering:
+            modality_df = apply_feature_engineering(modality_df, train_px, valid_px)
+        
+        # Clean data for XGBoost (convert object columns to numeric)
+        modality_df = clean_data_for_xgboost(modality_df)
+        
+        n_features.append(len(modality_df.columns))
+
+        # Prepare data
+        train_features = modality_df.loc[train_px]
+        valid_features = modality_df.loc[valid_px]
+        
+        train_labels = outcomes.loc[train_px, label_col]
+        valid_labels = outcomes.loc[valid_px, label_col].values
+
+        # Handle missing values: use training medians only
+        train_medians = train_features.median()
+        train_features = train_features.fillna(train_medians)
+        valid_features = valid_features.fillna(train_medians)
+
+        # Advanced preprocessing
+        train_features_processed, valid_features_processed = preprocess_features(
+            train_features, valid_features, train_labels, enable_power_transform=False
+        )
+
+        if XGBOOST_AVAILABLE:
+            # XGBoost parameters optimized for medical data (improved)
+            xgb_params = {
+                'objective': 'binary:logistic',
+                'eval_metric': 'auc',
+                'max_depth': 4,  # Slightly increased for more complexity
+                'learning_rate': 0.1,  # Increased for faster convergence
+                'n_estimators': 500,  # Increased for better performance
+                'subsample': 0.9,  # Increased for more data usage
+                'colsample_bytree': 0.9,  # Increased for more features
+                'colsample_bylevel': 0.9,  # Increased for more features
+                'reg_alpha': 0.5,  # Balanced L1 regularization
+                'reg_lambda': 2.0,  # Reduced L2 regularization
+                'min_child_weight': 3,  # Added to prevent overfitting
+                'gamma': 0.1,  # Added minimum loss reduction
+                'random_state': 42,
+                'n_jobs': -1,
+                'scale_pos_weight': len(train_labels[train_labels == 0]) / len(train_labels[train_labels == 1])
+            }
+
+            # Train XGBoost (without early stopping for compatibility)
+            clf = xgb.XGBClassifier(**xgb_params)
+            clf.fit(train_features_processed, train_labels)
+        else:
+            # Use Random Forest as alternative
+            rf_params = {
+                'n_estimators': 200,
+                'max_depth': 10,
+                'min_samples_split': 5,
+                'min_samples_leaf': 2,
+                'max_features': 'sqrt',
+                'random_state': 42,
+                'n_jobs': -1,
+                'class_weight': 'balanced'
+            }
+            
+            clf = RandomForestClassifier(**rf_params)
+            clf.fit(train_features_processed, train_labels)
+
+        # Get feature importance
+        # Use the actual feature names from processed data
+        actual_features = train_features_processed.columns
+        importance_df = pd.DataFrame({
+            'feature': actual_features,
+            'importance': clf.feature_importances_,
+            'fold': fold
+        })
+        feature_importance_list.append(importance_df)
+
+        # Predict probabilities
+        valid_scores = clf.predict_proba(valid_features_processed)[:, 1] - 0.5
+        
+        l_v_scores.extend(valid_scores)
+        l_v_labels.extend(valid_labels)
+        
+        # Calculate AUC for current fold
+        if 1.0 in valid_labels and 0.0 in valid_labels:
+            fold_auc, _ = auc_roc_ci(valid_labels, valid_scores, 0.95)
+        else:
+            fold_auc = 0.5  # Default AUC if no positive/negative samples
+        
+        # Store results
+        for idx, px in enumerate(valid_px):
+            d_summarys_all[px] = {
+                'label': valid_labels[idx],
+                'score': valid_scores[idx],
+                'fold': fold,
+                'auc': fold_auc
+            }
+
+        # Calculate and print overall AUC
+        if 1.0 in l_v_labels and 0.0 in l_v_labels:
+            auc, ci = auc_roc_ci(l_v_labels, l_v_scores, 0.95)
+            model_name = "XGBoost" if XGBOOST_AVAILABLE else "Random Forest"
+            print(f"Fold [{fold + 1}] {model_name} AUC = {auc:.3f} +/- {(ci[1] - ci[0]) / 2.0:.3f} 95% CL")
+
+    print(f"Avg N features: {np.mean(n_features):.1f}")
+    
+    # Aggregate feature importance
+    feature_importance_df = pd.concat(feature_importance_list, ignore_index=True)
+    feature_importance_agg = feature_importance_df.groupby('feature')['importance'].agg(['mean', 'std']).reset_index()
+    feature_importance_agg = feature_importance_agg.sort_values('mean', ascending=False)
+
+    return get_summary_df(d_summarys_all), feature_importance_agg
+
+
+def clean_data_for_xgboost(df):
+    """
+    Clean data for XGBoost by converting object columns to numeric
+    """
+    df_clean = df.copy()
+    
+    # Convert object columns to numeric
+    for col in df_clean.columns:
+        if df_clean[col].dtype == 'object':
+            try:
+                # Try to convert to numeric
+                df_clean[col] = pd.to_numeric(df_clean[col], errors='coerce')
+            except:
+                # If conversion fails, drop the column
+                print(f"Dropping non-numeric column: {col}")
+                df_clean = df_clean.drop(columns=[col])
+    # Drop columns that are entirely NaN after conversion
+    all_nan_cols = [c for c in df_clean.columns if df_clean[c].isna().all()]
+    if len(all_nan_cols) > 0:
+        df_clean = df_clean.drop(columns=all_nan_cols)
+    
+    return df_clean
+
+
+def apply_feature_engineering(df, train_px, valid_px):
+    """
+    Apply advanced feature engineering techniques
+    """
+    df_eng = df.copy()
+    
+    # First, handle infinity and NaN values
+    df_eng = df_eng.replace([np.inf, -np.inf], np.nan)
+    df_eng = df_eng.fillna(df_eng.median())
+    
+    # 1. Statistical features
+    numeric_cols = df_eng.select_dtypes(include=[np.number]).columns
+    top_features = []  # Initialize top_features
+    
+    # Add polynomial features for top correlated features
+    if len(numeric_cols) > 0:
+        # Calculate correlation with target (if available)
+        corr_threshold = 0.1
+        top_features = numeric_cols[:min(10, len(numeric_cols))]  # Top 10 features
+        
+        for col in top_features:
+            if col in df_eng.columns:
+                # Square features
+                df_eng[f'{col}_squared'] = df_eng[col] ** 2
+                # Log transform (handle zeros)
+                df_eng[f'{col}_log'] = np.log1p(np.abs(df_eng[col]))
+                # Square root
+                df_eng[f'{col}_sqrt'] = np.sqrt(np.abs(df_eng[col]))
+    
+    # 2. Interaction features between top features
+    if len(top_features) >= 2:
+        for i, col1 in enumerate(top_features[:5]):
+            for col2 in top_features[i+1:6]:
+                if col1 in df_eng.columns and col2 in df_eng.columns:
+                    df_eng[f'{col1}_x_{col2}'] = df_eng[col1] * df_eng[col2]
+    
+    # 3. Binning for continuous variables
+    for col in numeric_cols[:5]:  # Top 5 numeric features
+        if col in df_eng.columns and df_eng[col].nunique() > 10:
+            try:
+                df_eng[f'{col}_binned'] = pd.qcut(df_eng[col], q=4, duplicates='drop', labels=False)
+            except Exception as e:
+                print(f"Binning failed for {col}: {e}")
+                # Use simple binning as fallback
+                df_eng[f'{col}_binned'] = pd.cut(df_eng[col], bins=4, labels=False)
+    
+    # Final cleanup: handle any remaining infinity values
+    df_eng = df_eng.replace([np.inf, -np.inf], np.nan)
+    df_eng = df_eng.fillna(df_eng.median())
+    
+    return df_eng
+
+
+def preprocess_features(train_features, valid_features, train_labels, enable_power_transform: bool = False):
+    """
+    Advanced preprocessing pipeline
+    """
+    # Keep numeric columns only to avoid string/object leakage into transforms
+    train_numeric = train_features.select_dtypes(include=[np.number])
+    valid_numeric = valid_features.select_dtypes(include=[np.number])
+
+    # 1. Handle outliers using IQR method (numeric only)
+    train_processed = handle_outliers(train_numeric)
+    valid_processed = handle_outliers(valid_numeric, reference_df=train_numeric)
+    
+    # 2. Check for infinity and NaN values (only for numeric columns)
+    numeric_train = train_processed.select_dtypes(include=[np.number])
+    numeric_valid = valid_processed.select_dtypes(include=[np.number])
+    
+    print(f"Before PowerTransform - Train: inf={np.isinf(numeric_train).sum().sum()}, NaN={train_processed.isna().sum().sum()}")
+    print(f"Before PowerTransform - Valid: inf={np.isinf(numeric_valid).sum().sum()}, NaN={valid_processed.isna().sum().sum()}")
+    
+    # Replace infinity with NaN
+    train_processed = train_processed.replace([np.inf, -np.inf], np.nan)
+    valid_processed = valid_processed.replace([np.inf, -np.inf], np.nan)
+    
+    # Fill NaN values with TRAIN medians only
+    train_medians = train_processed.median()
+    train_processed = train_processed.fillna(train_medians)
+    valid_processed = valid_processed.fillna(train_medians)
+    
+    # 3. Optionally clip extremes and apply PowerTransform for skewed columns
+    if enable_power_transform:
+        numeric_cols = train_processed.columns
+        # Robust clipping to avoid extreme magnitudes that may break transforms
+        q_low = train_processed.quantile(0.001)
+        q_high = train_processed.quantile(0.999)
+        train_processed = train_processed.clip(lower=q_low, upper=q_high, axis=1)
+        valid_processed = valid_processed.clip(lower=q_low, upper=q_high, axis=1)
+
+        skewed_cols = []
+        for col in numeric_cols:
+            if train_processed[col].skew() > 1.0 or train_processed[col].skew() < -1.0:
+                skewed_cols.append(col)
+        
+        if len(skewed_cols) > 0:
+            try:
+                pt = PowerTransformer(method='yeo-johnson')
+                train_processed[skewed_cols] = pt.fit_transform(train_processed[skewed_cols])
+                valid_processed[skewed_cols] = pt.transform(valid_processed[skewed_cols])
+                
+                # Check for infinity after transformation (only for numeric columns)
+                numeric_train_after = train_processed.select_dtypes(include=[np.number])
+                numeric_valid_after = valid_processed.select_dtypes(include=[np.number])
+                print(f"After PowerTransform - Train: inf={np.isinf(numeric_train_after).sum().sum()}, max_abs={np.nanmax(np.abs(numeric_train_after.values))}")
+                print(f"After PowerTransform - Valid: inf={np.isinf(numeric_valid_after).sum().sum()}, max_abs={np.nanmax(np.abs(numeric_valid_after.values))}")
+                
+                # Replace any remaining infinity values and re-impute with training medians
+                train_processed = train_processed.replace([np.inf, -np.inf], np.nan)
+                valid_processed = valid_processed.replace([np.inf, -np.inf], np.nan)
+                train_medians = train_processed.median()
+                train_processed = train_processed.fillna(train_medians)
+                valid_processed = valid_processed.fillna(train_medians)
+                
+            except Exception as e:
+                print(f"PowerTransform failed: {e}")
+                print("Skipping PowerTransform...")
+    
+    # 4. Feature selection using statistical tests
+    if len(train_processed.columns) > 50:  # Only if we have many features
+        try:
+            selector = SelectKBest(score_func=f_classif, k=min(50, len(train_processed.columns)))
+            train_selected = selector.fit_transform(train_processed, train_labels)
+            valid_selected = selector.transform(valid_processed)
+            
+            selected_features = train_processed.columns[selector.get_support()]
+            train_processed = pd.DataFrame(train_selected, columns=selected_features, index=train_processed.index)
+            valid_processed = pd.DataFrame(valid_selected, columns=selected_features, index=valid_processed.index)
+        except Exception as e:
+            print(f"Feature selection failed: {e}")
+            print("Using all features...")
+    
+    return train_processed, valid_processed
+
+
+def handle_outliers(df, reference_df=None):
+    """
+    Handle outliers using IQR method
+    """
+    df_clean = df.copy()
+    numeric_cols = df_clean.select_dtypes(include=[np.number]).columns
+    
+    # First, handle infinity and NaN values
+    df_clean = df_clean.replace([np.inf, -np.inf], np.nan)
+    df_clean = df_clean.fillna(df_clean.median())
+    
+    for col in numeric_cols:
+        if reference_df is not None:
+            # Use reference_df for calculating bounds, but handle infinity first
+            ref_clean = reference_df[col].replace([np.inf, -np.inf], np.nan)
+            ref_clean = ref_clean.fillna(ref_clean.median())
+            Q1 = ref_clean.quantile(0.25)
+            Q3 = ref_clean.quantile(0.75)
+        else:
+            Q1 = df_clean[col].quantile(0.25)
+            Q3 = df_clean[col].quantile(0.75)
+        
+        IQR = Q3 - Q1
+        lower_bound = Q1 - 1.5 * IQR
+        upper_bound = Q3 + 1.5 * IQR
+        
+        # Cap outliers instead of removing them
+        df_clean[col] = df_clean[col].clip(lower_bound, upper_bound)
+    
+    return df_clean
+
+
+def train_XGBoost_optimized(df, outcomes, filter=None, n_splits=10, cv_index=None, label_col='label'):
+    """
+    Train XGBoost with optimized parameters for better performance
+    """
+    try:
+        import xgboost as xgb
+        XGBOOST_AVAILABLE = True
+    except ImportError:
+        print("Warning: XGBoost not installed. Using Random Forest as alternative.")
+        XGBOOST_AVAILABLE = False
+        from sklearn.ensemble import RandomForestClassifier
+    
+    from sklearn.preprocessing import StandardScaler, PowerTransformer
+    from sklearn.feature_selection import SelectKBest, f_classif
+    
+    l_v_scores = []
+    l_v_labels = []
+    d_summarys_all = {}
+    feature_importance_list = []
+
+    if cv_index is None:
+        cv_index = outcomes.index
+
+    kf = KFold(n_splits=n_splits, random_state=0, shuffle=True)
+    n_features = []
+
+    for fold, (train, test) in enumerate(tqdm(list(kf.split(cv_index)), file=sys.stdout)):
+        
+        modality_df = df.copy(deep=True)
+        train_px = cv_index[train]
+        valid_px = cv_index[test]
+
+        # Apply feature selection if filter provided
+        if filter is not None:
+            modality_df = l1_filter_features_df(modality_df, filter['l1_selection_df'], 
+                                              outcomes, valid_px, **filter['kwargs'])
+        
+        n_features.append(len(modality_df.columns))
+
+        # Prepare data
+        train_features = modality_df.loc[train_px]
+        valid_features = modality_df.loc[valid_px]
+        
+        train_labels = outcomes.loc[train_px, label_col]
+        valid_labels = outcomes.loc[valid_px, label_col].values
+
+        # Handle missing values
+        train_features = train_features.fillna(train_features.median())
+        valid_features = valid_features.fillna(train_features.median())
+
+        # Simple preprocessing
+        scaler = StandardScaler()
+        train_features_scaled = scaler.fit_transform(train_features)
+        valid_features_scaled = scaler.transform(valid_features)
+
+        if XGBOOST_AVAILABLE:
+            # Optimized XGBoost parameters
+            xgb_params = {
+                'objective': 'binary:logistic',
+                'eval_metric': 'auc',
+                'max_depth': 3,  # Shallow trees
+                'learning_rate': 0.2,  # Higher learning rate
+                'n_estimators': 100,  # Fewer trees
+                'subsample': 0.8,
+                'colsample_bytree': 0.8,
+                'reg_alpha': 1.0,  # Strong L1 regularization
+                'reg_lambda': 1.0,  # L2 regularization
+                'min_child_weight': 5,  # Prevent overfitting
+                'gamma': 0.5,  # Minimum loss reduction
+                'random_state': 42,
+                'n_jobs': -1,
+                'scale_pos_weight': len(train_labels[train_labels == 0]) / len(train_labels[train_labels == 1])
+            }
+
+            clf = xgb.XGBClassifier(**xgb_params)
+            clf.fit(train_features_scaled, train_labels)
+        else:
+            # Random Forest alternative
+            rf_params = {
+                'n_estimators': 100,
+                'max_depth': 5,
+                'min_samples_split': 10,
+                'min_samples_leaf': 5,
+                'max_features': 'sqrt',
+                'random_state': 42,
+                'n_jobs': -1,
+                'class_weight': 'balanced'
+            }
+            
+            clf = RandomForestClassifier(**rf_params)
+            clf.fit(train_features_scaled, train_labels)
+
+        # Get feature importance
+        importance_df = pd.DataFrame({
+            'feature': modality_df.columns,
+            'importance': clf.feature_importances_,
+            'fold': fold
+        })
+        feature_importance_list.append(importance_df)
+
+        # Predict probabilities
+        valid_scores = clf.predict_proba(valid_features_scaled)[:, 1] - 0.5
+        
+        l_v_scores.extend(valid_scores)
+        l_v_labels.extend(valid_labels)
+        
+        # Store results
+        for idx, px in enumerate(valid_px):
+            d_summarys_all[px] = {
+                'label': valid_labels[idx],
+                'score': valid_scores[idx],
+                'fold': fold
+            }
+
+        # Calculate AUC for current fold
+        if 1.0 in l_v_labels and 0.0 in l_v_labels:
+            auc, ci = auc_roc_ci(l_v_labels, l_v_scores, 0.95)
+            model_name = "XGBoost" if XGBOOST_AVAILABLE else "Random Forest"
+            print(f"Fold [{fold + 1}] {model_name} AUC = {auc:.3f} +/- {(ci[1] - ci[0]) / 2.0:.3f} 95% CL")
+
+    print(f"Avg N features: {np.mean(n_features):.1f}")
+    
+    # Aggregate feature importance
+    feature_importance_df = pd.concat(feature_importance_list, ignore_index=True)
+    feature_importance_agg = feature_importance_df.groupby('feature')['importance'].agg(['mean', 'std']).reset_index()
+    feature_importance_agg = feature_importance_agg.sort_values('mean', ascending=False)
+
+    return get_summary_df(d_summarys_all), feature_importance_agg
+
+
+def train_RandomForest(df, outcomes, filter=None, n_splits=10, cv_index=None, label_col='label', 
+                      feature_engineering=True, n_estimators=200, max_depth=10):
+    """
+    Train Random Forest model with optimized parameters for medical data
+    
+    Parameters:
+    -----------
+    df : pd.DataFrame
+        Feature matrix
+    outcomes : pd.DataFrame
+        Target labels
+    filter : dict, optional
+        Feature selection filter
+    n_splits : int
+        Number of CV folds
+    cv_index : array-like, optional
+        Custom CV indices
+    label_col : str
+        Label column name
+    feature_engineering : bool
+        Whether to apply feature engineering
+    n_estimators : int
+        Number of trees in the forest
+    max_depth : int
+        Maximum depth of the trees
+    
+    Returns:
+    --------
+    summary_df : pd.DataFrame
+        Cross-validation results
+    feature_importance_df : pd.DataFrame
+        Feature importance scores
+    """
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.preprocessing import StandardScaler, RobustScaler
+    from sklearn.feature_selection import SelectKBest, f_classif
+    
+    l_v_scores = []
+    l_v_labels = []
+    d_summarys_all = {}
+    feature_importance_list = []
+
+    if cv_index is None:
+        cv_index = outcomes.index
+
+    kf = KFold(n_splits=n_splits, random_state=0, shuffle=True)
+    n_features = []
+
+    for fold, (train, test) in enumerate(tqdm(list(kf.split(cv_index)), file=sys.stdout)):
+        
+        modality_df = df.copy(deep=True)
+        train_px = cv_index[train]
+        valid_px = cv_index[test]
+
+        # Apply feature selection if filter provided
+        if filter is not None:
+            modality_df = l1_filter_features_df(modality_df, filter['l1_selection_df'], 
+                                              outcomes, valid_px, **filter['kwargs'])
+
+        # Feature Engineering
+        if feature_engineering:
+            modality_df = apply_feature_engineering(modality_df, train_px, valid_px)
+        
+        # Clean data for XGBoost (convert object columns to numeric)
+        modality_df = clean_data_for_xgboost(modality_df)
+        
+        n_features.append(len(modality_df.columns))
+
+        # Prepare data
+        train_features = modality_df.loc[train_px]
+        valid_features = modality_df.loc[valid_px]
+        
+        train_labels = outcomes.loc[train_px, label_col]
+        valid_labels = outcomes.loc[valid_px, label_col].values
+
+        # Handle missing values
+        train_features = train_features.fillna(train_features.median())
+        valid_features = valid_features.fillna(train_features.median())
+
+        # Preprocessing
+        train_features_processed, valid_features_processed = preprocess_features(
+            train_features, valid_features, train_labels, enable_power_transform=False
+        )
+
+        # Random Forest parameters optimized for medical data
+        rf_params = {
+            'n_estimators': n_estimators,
+            'max_depth': max_depth,
+            'min_samples_split': 5,
+            'min_samples_leaf': 2,
+            'max_features': 'sqrt',  # Use sqrt of features
+            'bootstrap': True,
+            'oob_score': True,
+            'random_state': 42,
+            'n_jobs': -1,
+            'class_weight': 'balanced'  # Handle class imbalance
+        }
+
+        # Train Random Forest
+        clf = RandomForestClassifier(**rf_params)
+        clf.fit(train_features_processed, train_labels)
+
+        # Get feature importance
+        actual_features = train_features_processed.columns
+        importance_df = pd.DataFrame({
+            'feature': actual_features,
+            'importance': clf.feature_importances_,
+            'fold': fold
+        })
+        feature_importance_list.append(importance_df)
+
+        # Predict probabilities
+        valid_scores = clf.predict_proba(valid_features_processed)[:, 1] - 0.5
+        
+        l_v_scores.extend(valid_scores)
+        l_v_labels.extend(valid_labels)
+        
+        # Store results
+        for idx, px in enumerate(valid_px):
+            d_summarys_all[px] = {
+                'label': valid_labels[idx],
+                'score': valid_scores[idx],
+                'fold': fold
+            }
+
+        # Calculate AUC for current fold
+        if 1.0 in l_v_labels and 0.0 in l_v_labels:
+            auc, ci = auc_roc_ci(l_v_labels, l_v_scores, 0.95)
+            print(f"Fold [{fold + 1}] Random Forest AUC = {auc:.3f} +/- {(ci[1] - ci[0]) / 2.0:.3f} 95% CL")
+
+    print(f"Avg N features: {np.mean(n_features):.1f}")
+    
+    # Aggregate feature importance
+    feature_importance_df = pd.concat(feature_importance_list, ignore_index=True)
+    feature_importance_agg = feature_importance_df.groupby('feature')['importance'].agg(['mean', 'std']).reset_index()
+    feature_importance_agg = feature_importance_agg.sort_values('mean', ascending=False)
+
+    return get_summary_df(d_summarys_all), feature_importance_agg
+
+
+def train_LinearRegression(
+    df: pd.DataFrame,
+    outcomes: pd.DataFrame,
+    filter=None,
+    n_splits: int = 10,
+    cv_index=None,
+    label_col: str = 'label',
+) -> tuple:
+    """Train a Linear Regression model (continuous output) with CV.
+
+    Produces scores from linear predictions; suitable for AUC computation.
+    """
+    from sklearn.linear_model import LinearRegression
+    from sklearn.preprocessing import RobustScaler
+
+    l_v_scores: list[float] = []
+    l_v_labels: list[float] = []
+    d_summarys_all: dict = {}
+
+    if cv_index is None:
+        cv_index = outcomes.index
+
+    kf = KFold(n_splits=n_splits, random_state=0, shuffle=True)
+    n_features = []
+
+    for fold, (train, test) in enumerate(tqdm(list(kf.split(cv_index)), file=sys.stdout)):
+        modality_df = df.copy(deep=True)
+        # Ensure numeric-only data
+        try:
+            modality_df = clean_data_for_xgboost(modality_df)
+        except Exception:
+            modality_df = modality_df.select_dtypes(include=[np.number])
+
+        train_px = cv_index[train]
+        valid_px = cv_index[test]
+
+        if filter is not None:
+            modality_df = l1_filter_features_df(
+                modality_df, filter['l1_selection_df'], outcomes, valid_px, **filter['kwargs']
+            )
+
+        # Impute with training medians only
+        modality_df = modality_df.replace([np.inf, -np.inf], np.nan)
+        train_medians = modality_df.loc[train_px].median()
+        modality_df = modality_df.fillna(train_medians)
+
+        n_features.append(len(modality_df.columns))
+
+        train_features = modality_df.loc[train_px]
+        valid_features = modality_df.loc[valid_px]
+        train_labels = outcomes.loc[train_px, label_col]
+        valid_labels = outcomes.loc[valid_px, label_col].values
+
+        scaler = RobustScaler()
+        X_train = scaler.fit_transform(train_features)
+        X_valid = scaler.transform(valid_features)
+
+        reg = LinearRegression()
+        reg.fit(X_train, train_labels)
+
+        # Use raw prediction as score, center roughly around 0 using -0.5 like other models
+        valid_scores = reg.predict(X_valid) - 0.5
+
+        l_v_scores.extend(valid_scores)
+        l_v_labels.extend(valid_labels)
+
+        if 1.0 in valid_labels and 0.0 in valid_labels:
+            fold_auc, _ = auc_roc_ci(valid_labels, valid_scores, 0.95)
+        else:
+            fold_auc = 0.5
+
+        for idx, px in enumerate(valid_px):
+            d_summarys_all[px] = {
+                'label': valid_labels[idx],
+                'score': valid_scores[idx],
+                'fold': fold,
+                'auc': fold_auc,
+            }
+
+        if 1.0 in l_v_labels and 0.0 in l_v_labels:
+            auc, ci = auc_roc_ci(l_v_labels, l_v_scores, 0.95)
+            print(
+                f"Fold [{fold + 1}] Linear Regression AUC = {auc:.3f} +/- {(ci[1] - ci[0]) / 2.0:.3f} 95% CL"
+            )
+
+    print(f"Avg N features: {np.mean(n_features):.1f}")
+    return get_summary_df(d_summarys_all), None
+
+def train_SVM(
+    df: pd.DataFrame,
+    outcomes: pd.DataFrame,
+    filter=None,
+    n_splits: int = 10,
+    cv_index=None,
+    label_col: str = 'label',
+    kernel: str = 'rbf',
+) -> tuple:
+    """Train an SVM classifier with probability outputs.
+
+    Uses similar preprocessing as XGB/RF helpers and returns a summary DataFrame.
+    """
+    from sklearn.svm import SVC
+
+    l_v_scores = []
+    l_v_labels = []
+    d_summarys_all = {}
+
+    if cv_index is None:
+        cv_index = outcomes.index
+
+    kf = KFold(n_splits=n_splits, random_state=0, shuffle=True)
+    n_features = []
+
+    for fold, (train, test) in enumerate(tqdm(list(kf.split(cv_index)), file=sys.stdout)):
+        modality_df = df.copy(deep=True)
+        train_px = cv_index[train]
+        valid_px = cv_index[test]
+
+        # Optional filter
+        if filter is not None:
+            modality_df = l1_filter_features_df(modality_df, filter['l1_selection_df'], outcomes, valid_px, **filter['kwargs'])
+
+        # Clean and numeric-only
+        modality_df = clean_data_for_xgboost(modality_df)
+
+        # Split
+        train_features = modality_df.loc[train_px]
+        valid_features = modality_df.loc[valid_px]
+        train_labels = outcomes.loc[train_px, label_col]
+        valid_labels = outcomes.loc[valid_px, label_col].values
+
+        # Impute with training medians only
+        train_medians = train_features.median()
+        train_features = train_features.fillna(train_medians)
+        valid_features = valid_features.fillna(train_medians)
+
+        # Preprocess via existing pipeline (without power transform)
+        train_features_processed, valid_features_processed = preprocess_features(
+            train_features, valid_features, train_labels, enable_power_transform=False
+        )
+
+        # Scale (standard)
+        scaler = StandardScaler()
+        train_features_scaled = scaler.fit_transform(train_features_processed)
+        valid_features_scaled = scaler.transform(valid_features_processed)
+
+        n_features.append(train_features_processed.shape[1])
+
+        # Train SVM
+        model = SVC(kernel=kernel, probability=True, class_weight='balanced', random_state=42)
+        model.fit(train_features_scaled, train_labels)
+
+        # Predict probabilities
+        valid_scores = model.predict_proba(valid_features_scaled)[:, 1] - 0.5
+
+        l_v_scores.extend(valid_scores)
+        l_v_labels.extend(valid_labels)
+
+        # Fold AUC
+        if 1.0 in valid_labels and 0.0 in valid_labels:
+            fold_auc, _ = auc_roc_ci(valid_labels, valid_scores, 0.95)
+        else:
+            fold_auc = 0.5
+
+        # Store
+        for idx, px in enumerate(valid_px):
+            d_summarys_all[px] = {
+                'label': valid_labels[idx],
+                'score': valid_scores[idx],
+                'fold': fold,
+                'auc': fold_auc,
+            }
+
+        if 1.0 in l_v_labels and 0.0 in l_v_labels:
+            auc, ci = auc_roc_ci(l_v_labels, l_v_scores, 0.95)
+            print(
+                f"Fold [{fold + 1}] SVM {kernel.upper()} AUC = {auc:.3f} +/- {(ci[1] - ci[0]) / 2.0:.3f} 95% CL"
+            )
+
+    print(f"Avg N features: {np.mean(n_features):.1f}")
+    return get_summary_df(d_summarys_all), None
 
 def rf_pca(df, hue_series, palette=None, plot=True, hold=False, init=True, marker=None, transform=None, hue_order=None, save_name=None, color=None, legend_name=''):
     df = df.reset_index().set_index('main_index').drop(columns=["job_tag", "lesion_index", "site"], errors='ignore')
@@ -2793,6 +4903,144 @@ def generate_metric_plot_V2(d_summarys_dfs, models, annot_list=None, panel=None)
     return pd.DataFrame(out)
 
 
+def build_model_modality_auc_table(summary_dfs: dict, label_col: str = 'label', score_col: str = 'score') -> pd.DataFrame:
+    """Build a dynamic table with rows as model names and columns as modality/data types.
+
+    The function parses keys in summary_dfs with the convention "<Model> <Modality>".
+    Any new model following this naming will be added automatically.
+
+    Returns a wide DataFrame where index are model names and columns are modality labels, values are AUC.
+    """
+    from sklearn.metrics import roc_auc_score
+
+    model_to_modality_to_auc: dict[str, dict[str, float]] = {}
+
+    for key, df in summary_dfs.items():
+        # Expect keys like "LR Clinical", "XGB Rad-PC", "DyAM Gen", "RF IHC-A"
+        if not isinstance(key, str) or ' ' not in key:
+            # Skip entries that do not match the naming convention
+            continue
+
+        model_name, modality_label = key.split(' ', 1)
+
+        # Validate required columns
+        if not isinstance(df, pd.DataFrame):
+            continue
+        if label_col not in df.columns or score_col not in df.columns:
+            continue
+
+        labels = df[label_col]
+        scores = df[score_col]
+
+        # Guard against degenerate cases
+        if len(labels) == 0 or len(scores) == 0:
+            continue
+        if labels.nunique() < 2:
+            # AUC undefined when only one class present; skip
+            continue
+        try:
+            auc_val = float(roc_auc_score(labels, scores))
+        except Exception:
+            continue
+
+        if model_name not in model_to_modality_to_auc:
+            model_to_modality_to_auc[model_name] = {}
+        model_to_modality_to_auc[model_name][modality_label] = auc_val
+
+    if len(model_to_modality_to_auc) == 0:
+        return pd.DataFrame()
+
+    # Collect all modalities to ensure consistent columns
+    all_modalities = sorted({m for d in model_to_modality_to_auc.values() for m in d.keys()})
+
+    rows = []
+    index = []
+    for model_name in sorted(model_to_modality_to_auc.keys()):
+        row = [model_to_modality_to_auc[model_name].get(mod, pd.NA) for mod in all_modalities]
+        rows.append(row)
+        index.append(model_name)
+
+    result = pd.DataFrame(rows, index=index, columns=all_modalities)
+    result.index.name = 'Model'
+    return result
+
+
+def get_friendly_name_mappings():
+    """Return (model_map, modality_map) for pretty naming in reports/Excel.
+
+    You can extend these mappings without changing downstream code.
+    """
+    model_map = {
+        'LR': 'LR',
+        'XGB': 'XGBoost',
+        'RF': 'Random Forest',
+        'LinReg': 'Linear Regression',
+        'SVM': 'SVM',
+        'DyAM': 'DyAM',
+        'MILR': 'MILR',
+    }
+
+    modality_map = {
+        'rad_lesion_pc': 'Rad-PC',
+        'rad_lesion_pl': 'Rad-PL',
+        'rad_lesion_ln': 'Rad-LN',
+        'rad_lesion_lu': 'Rad-LU',
+        'path_ihc_pdl1': 'IHC-A',
+        'path_ihc_glcm': 'IHC-G',
+        'gen_driver_mut_amp': 'Gen',
+        'gen_driver_non_tmb': 'NonTMB',
+        'gen_driver_tmb': 'TMB',
+        'cnl_pdl1_score': 'PDL1',
+        'cnl_dem_labs': 'Clinical',
+        'Multimodal-Average': 'Multimodal-Average',
+        'Rad+IHC-A': 'Rad+IHC-A',
+        'Rad+IHC-G': 'Rad+IHC-G',
+        'Rad+Gen': 'Rad+Gen',
+        'IHC-A+Gen': 'IHC-A+Gen',
+        'IHC-G+Gen': 'IHC-G+Gen',
+        'Rad+IHC-A+Gen': 'Rad+IHC-A+Gen',
+        'Rad+IHC-G+Gen': 'Rad+IHC-G+Gen',
+        'Rad+IHC-A+Gen+PDL1': 'Rad+IHC-A+Gen+PDL1',
+        'Rad+IHC-G+Gen+PDL1': 'Rad+IHC-G+Gen+PDL1',
+        'Rad+Path+Gen+TMB+PDL1 (Full Fit)': 'Rad+Path+Gen+TMB+PDL1 (Full Fit)',
+        'TMB+PDL1': 'TMB+PDL1',
+    }
+
+    return model_map, modality_map
+
+
+def apply_friendly_names(df_wide: pd.DataFrame) -> pd.DataFrame:
+    """Apply friendly names to model index and modality columns of a wide table.
+
+    - Index: convert base model tokens (first word) per mapping, then combine as "<Model> <Modality>" if needed.
+    - Columns: map raw modality keys to short labels.
+    """
+    if df_wide is None or df_wide.empty:
+        return df_wide
+
+    model_map, modality_map = get_friendly_name_mappings()
+
+    # Map columns (modalities)
+    new_cols = []
+    for col in df_wide.columns:
+        new_cols.append(modality_map.get(col, col))
+    df_named = df_wide.copy()
+    df_named.columns = new_cols
+
+    # Map index (base model tokens) but keep full index text when it already looks like a full name
+    new_index = []
+    for idx in df_named.index:
+        if not isinstance(idx, str):
+            new_index.append(idx)
+            continue
+        token = idx.split(' ')[0]
+        mapped = model_map.get(token, token)
+        # Replace only the leading token
+        new_index.append(idx.replace(token, mapped, 1))
+    df_named.index = new_index
+    df_named.index.name = 'Model'
+    return df_named
+
 def make_rad_violin_plots(df):
     df = df.reset_index().set_index(['main_index', 'job_tag', 'lesion_index'])
     df = df[df.index.isin([RAD_JOB_TAG], level='job_tag')]
@@ -2974,6 +5222,38 @@ def make_general_violin_plot(df, df_clinical, ylims=None, units=None):
 
 
 def get_training_data(modal_list, modal_dict, df_mask, df_outcomes):
+#     Hàm get_training_data dùng để trích xuất dữ liệu đầu vào, mask, và nhãn (labels) cho các mẫu phù hợp từ nhiều nguồn đặc trưng (modalities) khác nhau, phục vụ cho việc huấn luyện mô hình.
+
+# Giải thích từng bước:
+
+# Tạo biểu thức chọn mẫu:
+
+# select_expr là một chuỗi biểu thức logic, kết hợp các cột mask của từng modality trong modal_list bằng toán tử OR (|).
+# Ví dụ: nếu modal_list = ['A', 'B'], thì select_expr sẽ là df_mask['A'] | df_mask['B'].
+# Lấy chỉ số các mẫu phù hợp:
+
+# px_subset là index của các mẫu mà có ít nhất một modality trong modal_list (theo mask).
+# Trích xuất dữ liệu đặc trưng:
+
+# modality_INPUT_subset: danh sách các DataFrame đặc trưng tương ứng với từng modality, chỉ lấy các mẫu trong px_subset.
+# modality_MASK_subset: DataFrame mask cho các mẫu và các modality đã chọn.
+# outcomes_subset: nhãn kết quả (labels) cho các mẫu đã chọn.
+# Trả về:
+
+# Trả về ba đối tượng: danh sách đặc trưng đầu vào, mask, và nhãn cho các mẫu phù hợp.
+# Ý nghĩa:
+# Hàm này giúp gom dữ liệu từ nhiều nguồn đặc trưng, chỉ lấy các mẫu có dữ liệu hợp lệ, để chuẩn bị cho bước huấn luyện hoặc đánh giá mô hình.
+    
+    # Kiểm tra xem tất cả modalities có trong modal_dict và df_mask không
+    missing_in_dict = [m for m in modal_list if m not in modal_dict]
+    if missing_in_dict:
+        raise KeyError(f"Các modalities sau không có trong modality_dict: {missing_in_dict}")
+    
+    missing_in_mask = [m for m in modal_list if m not in df_mask.columns]
+    if missing_in_mask:
+        raise KeyError(f"Các modalities sau không có trong df_mask: {missing_in_mask}. "
+                      f"Hãy đảm bảo đã gọi prepare_rad_modality_by_size hoặc prepare_other_modalities trước đó.")
+    
     select_expr = ' | '.join([f"df_mask['{modality}']" for modality in modal_list])
     px_subset = eval(f"df_mask[({select_expr})].index")
 
