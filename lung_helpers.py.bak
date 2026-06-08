@@ -323,10 +323,6 @@ def find_optimal_cutoff(target, predicted):
     list type, with optimal cutoff value
         
     """
-    if hasattr(target, 'cpu'):
-        target = target.cpu()
-    if hasattr(predicted, 'cpu'):
-        predicted = predicted.cpu()
     fpr, tpr, threshold = roc_curve(target, predicted)
     i = np.arange(len(tpr)) 
     roc = pd.DataFrame({'tf' : pd.Series(tpr-(1-fpr), index=i), 'threshold' : pd.Series(threshold, index=i)})
@@ -947,13 +943,12 @@ class AttentionMatrix(nn.Module):
 
         # Nếu không cho phép attention chéo giữa các modality (cross-modality)
         if not self.cross_modality_enabled:
-
+            
             # Tạo một ma trận đơn vị để chỉ giữ lại các phần tử trên đường chéo chính
             # của ma trận attention, tức là mỗi modality chỉ attend đến chính nó.
             identity_mask = torch.eye(self.n_input_channels)\
                 .reshape(1, self.n_input_channels, self.n_input_channels)\
-                .repeat(matrix_mask.shape[0], 1, 1)\
-                .to(mask.device)
+                .repeat(matrix_mask.shape[0], 1, 1)
 
             # Áp dụng identity_mask để loại bỏ các phần tử ngoài đường chéo
             matrix_mask = identity_mask * matrix_mask
@@ -974,7 +969,7 @@ class AttentionMatrix(nn.Module):
                 # l_attn_linears chứa N*N lớp linear, tính toán điểm attention thô.
                 # Chia cho l_feature_factor (số lượng feature) để chuẩn hóa,
                 # tránh modality có nhiều feature hơn thì có điểm attention lớn hơn một cách không công bằng.
-                attn_reduced.append ( self.l_attn_linears[matrix_index](input_channel) / self.l_feature_factor[channel_index].to(input_channel.device) )
+                attn_reduced.append ( self.l_attn_linears[matrix_index](input_channel) / self.l_feature_factor[channel_index] )
                 
                 matrix_index += 1
         
@@ -1097,7 +1092,7 @@ class AttentionMatrixOvO(nn.Module):
             risk_reduced.append(self.l_risk_linears[channel_index](input_channel))
             
             # Attention score cho modality này (sẽ được so sánh với others)
-            attn_score = self.l_attn_linears[channel_index](input_channel) / self.l_feature_factor[channel_index].to(input_channel.device)
+            attn_score = self.l_attn_linears[channel_index](input_channel) / self.l_feature_factor[channel_index]
             attn_scores_raw.append(attn_score)
         
         # Stack các scores
@@ -1201,7 +1196,7 @@ class AttentionMatrixOvO_Softmax(nn.Module):
         
         for channel_index, input_channel in enumerate(inputs):
             risk_reduced.append(self.l_risk_linears[channel_index](input_channel))
-            attn_score = self.l_attn_linears[channel_index](input_channel) / self.l_feature_factor[channel_index].to(input_channel.device)
+            attn_score = self.l_attn_linears[channel_index](input_channel) / self.l_feature_factor[channel_index]
             attn_scores_raw.append(attn_score)
         
         risk_scores = torch.cat(risk_reduced, axis=1)
@@ -1259,15 +1254,14 @@ class MultiModalDynamicModel(nn.Module):
         self.cross_modality_enabled = cross_modality_enabled
         self.noscale=no_scale
         self.attention_gate_enabled = attention_gate_enabled
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
+    
     def response_zscore(self, input, target=None):
 
         if self.training:
             threshold = find_optimal_cutoff(target.detach(), input.detach())
-            threshold = torch.tensor(threshold).to(self.device)
+            threshold = torch.tensor(threshold)
 #             print (classification_report(target.long().detach(), (input > threshold).long().detach()))
-
+            
             self.mu  = threshold
             self.std = input.std(dim=0)
         else:
@@ -1312,23 +1306,22 @@ class MultiModalDynamicModel(nn.Module):
                         raise ValueError(f"Modality {i} không có cột numeric nào hợp lệ")
             
             if i in self.noscale: 
-                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float().to(self.device)
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float()
             else:
                 scaler  = RobustScaler() #PowerTransformer() #StandardScaler()        
-                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(scaler.fit_transform(X))).float().to(self.device)
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(scaler.fit_transform(X))).float()
                 self.l_scalers.append ( scaler )
             self.dyam.add_channel (X)
 
             
         self.dyam.setup_matrix()
-        self.to(self.device)
                 
-        mask    = torch.tensor(arr_MASK).float().to(self.device)
-        targets = torch.tensor(vector_Y).float().to(self.device) # Need to be float with BCE
+        mask    = torch.tensor(arr_MASK).float()
+        targets = torch.tensor(vector_Y).float() # Need to be float with BCE
 
         self.criterion = nn.BCEWithLogitsLoss(pos_weight=sum(targets==0) / sum(targets==1))
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
-
+        
         dataset = MaskedMultiModalLoader (l_X_INPUTS, mask, targets)
         loader  = DataLoader(dataset, batch_size=256, shuffle=True, drop_last=False )
         n_batch = len(loader)
@@ -1352,10 +1345,10 @@ class MultiModalDynamicModel(nn.Module):
         #  Final fit
         output, risk_scores, mixing_matrix, ar2, rr2 = self.dyam(l_X_INPUTS, mask)
 
-        return self.response_zscore(output, targets).detach().cpu().numpy()
+        return self.response_zscore(output, targets).detach().numpy()
 
     def get_coefs(self, modality_list, modality_mask):
-        coefs = torch.cat([x.weight.flatten() for x in self.dyam.l_risk_linears], dim=0).flatten().detach().cpu().numpy()
+        coefs = torch.cat([x.weight.flatten() for x in self.dyam.l_risk_linears], dim=0).flatten().detach().numpy()
 
         columns = []
         for i, df in enumerate(modality_list): columns.extend(df.add_prefix("risk___" + modality_mask.columns[i] + '__').columns)
@@ -1363,6 +1356,7 @@ class MultiModalDynamicModel(nn.Module):
         df_coef = pd.DataFrame([coefs, np.sign(coefs)], columns=columns, index=['coef', 'sign'])
 
         return df_coef
+
 
 
     def predict_proba(self, l_X_INPUTS, arr_MASK):
@@ -1393,15 +1387,15 @@ class MultiModalDynamicModel(nn.Module):
                         raise ValueError(f"Modality {i} không có cột numeric nào hợp lệ")
             
             if i in self.noscale: 
-                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float().to(self.device)
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float()
             else:
-                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(self.l_scalers[i].transform(X))).float().to(self.device)
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(self.l_scalers[i].transform(X))).float()
                     
-        mask = torch.tensor(arr_MASK).float().to(self.device)
+        mask = torch.tensor(arr_MASK).float()
 
         output, risk_scores, mixing_matrix, ar2, rr2 = self.dyam(l_X_INPUTS, mask)
         
-        return self.response_zscore(output).detach().cpu().numpy()
+        return self.response_zscore(output).detach().numpy()
     
     def get_summary_scores(self, l_X_INPUTS, arr_MASK):
         self.eval()
@@ -1431,11 +1425,11 @@ class MultiModalDynamicModel(nn.Module):
                         raise ValueError(f"Modality {i} không có cột numeric nào hợp lệ")
             
             if i in self.noscale: 
-                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float().to(self.device)
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float()
             else:
-                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(self.l_scalers[i].transform(X))).float().to(self.device)
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(self.l_scalers[i].transform(X))).float()
                     
-        mask = torch.tensor(arr_MASK).float().to(self.device)
+        mask = torch.tensor(arr_MASK).float()
         
         share_factor = mask.sum(dim=1, keepdim=True)
 
@@ -1449,7 +1443,7 @@ class MultiModalDynamicModel(nn.Module):
 #         print ("Validation risk scores:", risk_scores.detach().numpy())
 #         print ("Validation attention:  ", attention_share.detach().numpy())
         
-        return output.detach().cpu().numpy(), risk_scores.detach().cpu().numpy(), mixing_matrix.detach().cpu().numpy(), attention_share.detach().cpu().numpy()
+        return output.detach().numpy(), risk_scores.detach().numpy(), mixing_matrix.detach().numpy(), attention_share.detach().numpy()
 
 
 class MultiModalDynamicModelOvO(nn.Module):
@@ -1468,13 +1462,12 @@ class MultiModalDynamicModelOvO(nn.Module):
         self.print_on = print_on
         self.noscale=no_scale
         self.attention_gate_enabled = attention_gate_enabled
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     def response_zscore(self, input, target=None):
 
         if self.training:
             threshold = find_optimal_cutoff(target.detach(), input.detach())
-            threshold = torch.tensor(threshold).to(self.device)
+            threshold = torch.tensor(threshold)
             
             self.mu  = threshold
             self.std = input.std(dim=0)
@@ -1519,25 +1512,24 @@ class MultiModalDynamicModelOvO(nn.Module):
                         raise ValueError(f"Modality {i} không có cột numeric nào hợp lệ")
             
             if i in self.noscale: 
-                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float().to(self.device)
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float()
             else:
                 scaler  = RobustScaler()
-                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(scaler.fit_transform(X))).float().to(self.device)
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(scaler.fit_transform(X))).float()
                 self.l_scalers.append ( scaler )
             self.dyam.add_channel (X)
 
             
         self.dyam.setup_matrix()
-        self.to(self.device)
                 
-        mask    = torch.tensor(arr_MASK).float().to(self.device)
-        targets = torch.tensor(vector_Y).float().to(self.device)
+        mask    = torch.tensor(arr_MASK).float()
+        targets = torch.tensor(vector_Y).float()
 
         self.criterion = nn.BCEWithLogitsLoss(pos_weight=sum(targets==0) / sum(targets==1))
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
         
-        dataset = MaskedMultiModalLoader(l_X_INPUTS, mask, targets)
-        loader  = DataLoader(dataset, batch_size=256, shuffle=True, drop_last=False)
+        dataset = MaskedMultiModalLoader (l_X_INPUTS, mask, targets)
+        loader  = DataLoader(dataset, batch_size=256, shuffle=True, drop_last=False )
         n_batch = len(loader)
         
         for i in range(self.epochs + 1):
@@ -1557,10 +1549,10 @@ class MultiModalDynamicModelOvO(nn.Module):
         #  Final fit
         output, risk_scores, mixing_matrix, ar2, rr2 = self.dyam(l_X_INPUTS, mask)
 
-        return self.response_zscore(output, targets).detach().cpu().numpy()
+        return self.response_zscore(output, targets).detach().numpy()
 
     def get_coefs(self, modality_list, modality_mask):
-        coefs = torch.cat([x.weight.flatten() for x in self.dyam.l_risk_linears], dim=0).flatten().detach().cpu().numpy()
+        coefs = torch.cat([x.weight.flatten() for x in self.dyam.l_risk_linears], dim=0).flatten().detach().numpy()
 
         columns = []
         for i, df in enumerate(modality_list): columns.extend(df.add_prefix("risk___" + modality_mask.columns[i] + '__').columns)
@@ -1597,15 +1589,15 @@ class MultiModalDynamicModelOvO(nn.Module):
                         raise ValueError(f"Modality {i} không có cột numeric nào hợp lệ")
             
             if i in self.noscale: 
-                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float().to(self.device)
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float()
             else:
-                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(self.l_scalers[i].transform(X))).float().to(self.device)
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(self.l_scalers[i].transform(X))).float()
                     
         mask = torch.tensor(arr_MASK).float()
         
         output, risk_scores, mixing_matrix, ar2, rr2 = self.dyam(l_X_INPUTS, mask)
         
-        return self.response_zscore(output).detach().cpu().numpy()
+        return self.response_zscore(output).detach().numpy()
     
     def get_summary_scores(self, l_X_INPUTS, arr_MASK):
         self.eval()
@@ -1635,11 +1627,11 @@ class MultiModalDynamicModelOvO(nn.Module):
                         raise ValueError(f"Modality {i} không có cột numeric nào hợp lệ")
             
             if i in self.noscale: 
-                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float().to(self.device)
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float()
             else:
-                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(self.l_scalers[i].transform(X))).float().to(self.device)
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(self.l_scalers[i].transform(X))).float()
                     
-        mask = torch.tensor(arr_MASK).float().to(self.device)
+        mask = torch.tensor(arr_MASK).float()
         
         share_factor = mask.sum(dim=1, keepdim=True)
 
@@ -1648,7 +1640,7 @@ class MultiModalDynamicModelOvO(nn.Module):
         # mixing_matrix từ OvO đã là 3D [batch_size, n_modalities, n_modalities]
         attention_share = share_factor.unsqueeze(2) * mixing_matrix
         
-        return output.detach().cpu().numpy(), risk_scores.detach().cpu().numpy(), mixing_matrix.detach().cpu().numpy(), attention_share.detach().cpu().numpy()
+        return output.detach().numpy(), risk_scores.detach().numpy(), mixing_matrix.detach().numpy(), attention_share.detach().numpy()
 
 
 class MultiModalDynamicModelOvO_Softmax(nn.Module):
@@ -1669,12 +1661,11 @@ class MultiModalDynamicModelOvO_Softmax(nn.Module):
         self.print_on = print_on
         self.noscale = no_scale
         self.attention_gate_enabled = attention_gate_enabled
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     def response_zscore(self, input, target=None):
         if self.training:
             threshold = find_optimal_cutoff(target.detach(), input.detach())
-            threshold = torch.tensor(threshold).to(self.device)
+            threshold = torch.tensor(threshold)
             self.mu = threshold
             self.std = input.std(dim=0)
         return (input - self.mu) / self.std
@@ -1709,17 +1700,16 @@ class MultiModalDynamicModelOvO_Softmax(nn.Module):
                         raise ValueError(f"Modality {i} không có cột numeric nào hợp lệ")
 
             if i in self.noscale:
-                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float().to(self.device)
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float()
             else:
                 scaler = RobustScaler()
-                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(scaler.fit_transform(X))).float().to(self.device)
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(scaler.fit_transform(X))).float()
                 self.l_scalers.append(scaler)
             self.dyam.add_channel(X)
 
         self.dyam.setup_matrix()
-        self.to(self.device)
-        mask = torch.tensor(arr_MASK).float().to(self.device)
-        targets = torch.tensor(vector_Y).float().to(self.device)
+        mask = torch.tensor(arr_MASK).float()
+        targets = torch.tensor(vector_Y).float()
 
         self.criterion = nn.BCEWithLogitsLoss(pos_weight=sum(targets == 0) / sum(targets == 1))
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
@@ -1739,10 +1729,10 @@ class MultiModalDynamicModelOvO_Softmax(nn.Module):
                 self.optimizer.step()
 
         output, risk_scores, mixing_matrix, ar2, rr2 = self.dyam(l_X_INPUTS, mask)
-        return self.response_zscore(output, targets).detach().cpu().numpy()
+        return self.response_zscore(output, targets).detach().numpy()
 
     def get_coefs(self, modality_list, modality_mask):
-        coefs = torch.cat([x.weight.flatten() for x in self.dyam.l_risk_linears], dim=0).flatten().detach().cpu().numpy()
+        coefs = torch.cat([x.weight.flatten() for x in self.dyam.l_risk_linears], dim=0).flatten().detach().numpy()
         columns = []
         for i, df in enumerate(modality_list):
             columns.extend(df.add_prefix("risk___" + modality_mask.columns[i] + '__').columns)
@@ -1775,13 +1765,13 @@ class MultiModalDynamicModelOvO_Softmax(nn.Module):
                         raise ValueError(f"Modality {i} không có cột numeric nào hợp lệ")
 
             if i in self.noscale:
-                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float().to(self.device)
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float()
             else:
-                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(self.l_scalers[i].transform(X))).float().to(self.device)
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(self.l_scalers[i].transform(X))).float()
 
         mask = torch.tensor(arr_MASK).float()
         output, risk_scores, mixing_matrix, ar2, rr2 = self.dyam(l_X_INPUTS, mask)
-        return self.response_zscore(output).detach().cpu().numpy()
+        return self.response_zscore(output).detach().numpy()
 
     def get_summary_scores(self, l_X_INPUTS, arr_MASK):
         self.eval()
@@ -1809,9 +1799,9 @@ class MultiModalDynamicModelOvO_Softmax(nn.Module):
                         raise ValueError(f"Modality {i} không có cột numeric nào hợp lệ")
 
             if i in self.noscale:
-                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float().to(self.device)
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X)).float()
             else:
-                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(self.l_scalers[i].transform(X))).float().to(self.device)
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(self.l_scalers[i].transform(X))).float()
 
         mask = torch.tensor(arr_MASK).float()
         share_factor = mask.sum(dim=1, keepdim=True)
@@ -1893,12 +1883,11 @@ class MultiModalDynamicModelGMU(nn.Module):
         self.num_modalities = 0
         self.l_scalers = []
         self.gmu_fusion_module = None
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     def response_zscore(self, input, target=None):
         if self.training:
             threshold = find_optimal_cutoff(target.detach(), input.detach())
-            threshold = torch.tensor(threshold).to(self.device)
+            threshold = torch.tensor(threshold)
             self.mu  = threshold
             self.std = input.std(dim=0)
         return (input - self.mu) / self.std
@@ -1939,11 +1928,11 @@ class MultiModalDynamicModelGMU(nn.Module):
                 raise ValueError(f"Unsupported input type for modality {i}: {type(X_modality_raw)}")
 
             if i in self.noscale: 
-                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X_cleaned)).float().to(self.device)
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X_cleaned)).float()
                 input_dim = X_cleaned.shape[1]
             else:
                 scaler  = RobustScaler()
-                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(scaler.fit_transform(X_cleaned))).float().to(self.device)
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(scaler.fit_transform(X_cleaned))).float()
                 self.l_scalers.append ( scaler )
                 input_dim = X_cleaned.shape[1]
 
@@ -1959,10 +1948,9 @@ class MultiModalDynamicModelGMU(nn.Module):
             )
 
         self.gmu_fusion_module = GatedMultimodalUnitFusion(self.num_modalities, self.hidden_dims)
-        self.to(self.device)
 
-        mask    = torch.tensor(arr_MASK).float().to(self.device)
-        targets = torch.tensor(vector_Y).float().to(self.device)
+        mask    = torch.tensor(arr_MASK).float()
+        targets = torch.tensor(vector_Y).float()
 
         self.criterion = nn.BCEWithLogitsLoss(pos_weight=sum(targets==0) / sum(targets==1))
         self.optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
@@ -1987,7 +1975,7 @@ class MultiModalDynamicModelGMU(nn.Module):
 
         output, risk_scores_output, gate_values, _, _ = self.forward(l_X_INPUTS)
 
-        return self.response_zscore(output, targets).detach().cpu().numpy()
+        return self.response_zscore(output, targets).detach().numpy()
 
     def get_l2_weight_sum(self):
         l2_sum = torch.tensor(0.0, device=next(self.parameters()).device)
@@ -2046,7 +2034,7 @@ class MultiModalDynamicModelGMU(nn.Module):
                 raise ValueError(f"Unsupported input type for modality {i}: {type(X_modality_raw)}")
 
             if i in self.noscale: 
-                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X_cleaned)).float().to(self.device)
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X_cleaned)).float()
             else:
                 l_X_INPUTS[i] = torch.tensor(np.nan_to_num(self.l_scalers[i].transform(X_cleaned))).float()
 
@@ -2054,7 +2042,7 @@ class MultiModalDynamicModelGMU(nn.Module):
 
         output, _, _, _, _ = self.forward(l_X_INPUTS)
 
-        return self.response_zscore(output).detach().cpu().numpy()
+        return self.response_zscore(output).detach().numpy()
 
     def get_summary_scores(self, l_X_INPUTS, arr_MASK):
         self.eval()
@@ -2085,7 +2073,7 @@ class MultiModalDynamicModelGMU(nn.Module):
                 raise ValueError(f"Unsupported input type for modality {i}: {type(X_modality_raw)}")
 
             if i in self.noscale: 
-                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X_cleaned)).float().to(self.device)
+                l_X_INPUTS[i] = torch.tensor(np.nan_to_num(X_cleaned)).float()
             else:
                 l_X_INPUTS[i] = torch.tensor(np.nan_to_num(self.l_scalers[i].transform(X_cleaned))).float()
 
