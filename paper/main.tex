@@ -1,0 +1,145 @@
+%% MDPI Cancers — Main Manuscript
+%% Compile: pdflatex main → bibtex main → pdflatex main → pdflatex main
+%%          OR: latexmk -pdf main
+
+\documentclass[cancers,article,submit,moreauthors,pdftex]{mdpi}
+%% Fallback if mdpi.cls not installed:
+%% \documentclass[12pt,a4paper]{article}
+
+%% ── Core packages ────────────────────────────────────────────────────────────
+\usepackage{amsmath,amssymb}        % math
+\usepackage{booktabs}               % professional tables (\toprule \midrule)
+\usepackage{graphicx}               % \includegraphics
+%% subfig is already loaded by mdpi.cls; \subfloat{} is used for subfigures
+\usepackage{float}                  % [H] float placement
+\usepackage{pdflscape}              % landscape pages for wide tables
+%% hyperref is already loaded by mdpi.cls; reloading it breaks the preamble
+\usepackage{xcolor}                 % \textcolor{} for review comments
+\usepackage{microtype}              % better line-break typography
+\usepackage{array}                  % p{} column type in tabular
+\usepackage{multirow}               % \multirow in tables
+\usepackage{siunitx}                % consistent number formatting
+\usepackage{natbib}                 % author-year citations
+%% bibliographystyle{mdpi} is already set by mdpi.cls
+
+%% ── MDPI internal commands - do not modify ──────────────────────────────────
+\firstpage{1}
+\makeatletter
+\setcounter{page}{\@firstpage}
+\makeatother
+\pubvolume{1}
+\issuenum{1}
+\articlenumber{0}
+\pubyear{2026}
+\copyrightyear{2026}
+\datereceived{ }
+\daterevised{ }
+\dateaccepted{ }
+\datepublished{ }
+\setlength{\headheight}{20.0pt}
+
+%% ── Journal metadata ─────────────────────────────────────────────────────────
+\Title{NLP-Augmented Multimodal Attention Fusion for Immunotherapy Response
+Prediction in Non-Small Cell Lung Cancer}
+
+\Author{%
+  First Author$^{1,\dagger}$,
+  Second Author$^{2}$,
+  Third Author$^{1,*}$
+}
+
+\AuthorNames{Author, F.; Author, S.; Author, T.}
+
+\address{%
+  $^{1}$ \quad Department of [DEPARTMENT], [UNIVERSITY], [CITY], [COUNTRY];
+           \href{mailto:first@email.com}{first@email.com} \\
+  $^{2}$ \quad Department of [DEPARTMENT], [UNIVERSITY], [CITY], [COUNTRY]
+}
+
+\corres{Correspondence: \href{mailto:third@email.com}{third@email.com}; Tel.: +X-XXX-XXX-XXXX}
+
+\firstnote{$\dagger$ These authors contributed equally to this work.}
+
+%% ── Abstract & Keywords ──────────────────────────────────────────────────────
+\abstract{%
+  Predicting  response to immune checkpoint inhibitors (ICIs) in non-small
+  cell lung cancer (NSCLC) remains challenging, as established biomarkers
+  such as PD-L1 expression provide only modest discrimination.
+  We extended the Dynamic Attention Multimodal (DyAM) fusion framework, which
+  combines CT radiomics, pathology, genomics, PD-L1, and clinical data via
+  learned per-modality attention, with two contributions: a competitive
+  one-vs-others (OvO) attention mechanism, and a natural language processing
+  (NLP) encoding of 13 numeric clinical variables using a pretrained sentence
+  transformer.
+  In a 247-patient discovery cohort, repeated-seed evaluation
+  (5~seeds~$\times$~10-fold, 21 combinations) placed OvO within
+  $0.011$~AUC of cooperative attention at every primary benchmark
+  (AUC~$=0.773$ vs.\ $0.760$, $p\geq 0.17$), exceeding it in 12 of 21
+  combinations (best single-partition AUC~$=0.800$), showing OvO's simpler
+  formulation matches or exceeds cooperative attention at no accuracy cost.
+  NLP-encoded clinical features improved AUC over raw numeric encoding in
+  both pathology arms (best AUC~$=0.813$ [0.753--0.874], $\Delta = +0.030$),
+  a gain that also held for OvO.
+  Survival analysis showed NLP encoding yielded the highest Cox hazard
+  ratios (up to 6.07 vs.\ 5.30) and improved time-dependent AUC at
+  12--18~months, with all Kaplan--Meier stratifications reaching
+  $p < 0.005$.
+  NLP-based clinical encoding offers a practical, architecture-agnostic
+  improvement to multimodal ICI response prediction.
+}
+
+\keyword{%
+  non-small cell lung cancer;
+  immunotherapy response prediction;
+  multimodal deep learning;
+  attention mechanism;
+  natural language processing;
+  sentence embedding;
+  survival analysis;
+  radiomics
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\begin{document}
+
+\input{sections/introduction}
+\input{sections/methods}
+\input{sections/results}
+\input{sections/discussion}
+\input{sections/conclusion}
+
+%% ── MDPI mandatory back-matter declarations ─────────────────────────────────
+\authorcontributions{%
+  Conceptualization, [F.A.] and [T.A.];
+  methodology, [F.A.] and [S.A.];
+  software, [F.A.];
+  formal analysis, [F.A.];
+  writing---original draft preparation, [F.A.];
+  writing---review and editing, [S.A.] and [T.A.];
+  supervision, [T.A.].
+  All authors have read and agreed to the published version of the manuscript.
+}
+
+\funding{[FUNDING — e.g., This research received no external funding.]}
+
+\institutionalreview{%
+  This study was approved by the Institutional Review Board of [INSTITUTION]
+  (Protocol No.~[IRB-NUMBER]).
+}
+
+\informedconsent{%
+  Informed consent was obtained from all subjects involved in the study.
+}
+
+\dataavailability{%
+  The code used in this study is available at
+  \href{https://github.com/[REPO]}{https://github.com/[REPO]}.
+  Patient-level data are subject to institutional data-sharing agreements
+  and available upon reasonable request.
+}
+
+\conflictsofinterest{The authors declare no conflicts of interest.}
+
+\bibliography{references}
+
+\end{document}

@@ -1,0 +1,35 @@
+%% sections/conclusion.tex — Step B12
+\section{Conclusions}
+\label{sec:conclusion}
+
+We extended the DyAM multimodal attention framework for ICI response
+prediction in NSCLC with a competitive (OvO) attention mechanism and an
+NLP-based encoding of structured clinical variables.
+Under a repeated-seed evaluation protocol, OvO attention matched the
+original cooperative attention at every primary benchmark configuration
+(within 0.011~AUC, $p \geq 0.17$; AUC~$=0.773$ vs.\ $0.760$ at the primary
+benchmark), offering a simpler, $N$-parameter alternative to the
+$N \times N$ cooperative weight matrix without a measurable accuracy cost;
+an initial single-partition screen had suggested a larger OvO advantage in
+low-modality configurations (best single-partition AUC~$=0.800$, later
+$0.8133$ when combined with NLP-clinical encoding), and averaging across
+five independent CV partitions confirmed OvO's accuracy while showing this
+particular single-partition margin does not reproduce exactly.
+NLP encoding of clinical features using a general-purpose sentence
+transformer consistently improved AUC over raw numeric encoding
+(up to $\Delta\text{AUC} = +0.030$) and provided the strongest independent
+prognostic value in survival analysis, with the highest Cox hazard ratios and
+time-dependent AUC among all clinical encoding strategies, despite AUC
+differences not reaching statistical significance at $n=247$.
+This improvement was confirmed under repeated-seed evaluation (NLP
+encoding exceeded numeric labs in 19 of 21 modality combinations) and
+generalised across fusion mechanisms: combining NLP-clinical encoding with
+OvO attention reproduced the same fusion-dependent gain, indicating that
+the clinical-encoding strategy, rather than the choice of attention
+mechanism, drives the improvement.
+These findings suggest that sentence-embedding-based representations of
+tabular clinical data are a practical and generalisable strategy for
+multimodal biomarker discovery, robust to the underlying attention
+architecture.
+Validation in larger, multi-institutional cohorts is needed to confirm these
+findings and to establish their clinical utility for treatment selection.

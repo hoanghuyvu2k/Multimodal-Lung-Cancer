@@ -1,0 +1,94 @@
+%% sections/introduction.tex — Step B11
+\section{Introduction}
+\label{sec:intro}
+
+Lung cancer remains the leading cause of cancer-related mortality worldwide,
+with non-small cell lung cancer (NSCLC) accounting for approximately 85\% of
+cases \cite{Siegel2024}.
+The introduction of immune checkpoint inhibitors (ICIs) targeting the
+PD-1/PD-L1 axis has transformed treatment for advanced NSCLC, producing
+durable responses in a subset of patients \cite{Reck2016,Borghaei2015}.
+However, only 20--30\% of unselected patients achieve an objective response,
+and a substantial proportion experience primary or acquired resistance
+\cite{Rizvi2015}.
+Reliable pre-treatment identification of likely responders remains an
+unresolved clinical need, as it would allow clinicians to prioritise ICI
+therapy for patients most likely to benefit and to consider alternative or
+combination strategies for those unlikely to respond.
+
+PD-L1 tumour proportion score (TPS) and tumour mutational burden (TMB) are
+the most widely used biomarkers for ICI response prediction, but both have
+well-documented limitations: PD-L1 expression is spatially heterogeneous and
+assay-dependent, while TMB alone provides only modest discriminative
+performance \cite{Herbst2016,Rizvi2015}.
+This has motivated growing interest in multimodal approaches that integrate
+radiomics from CT imaging, pathomics from digitised histology, genomic
+alterations, and clinical variables into a single predictive model
+\cite{Bodalal2019,Dercle2020,Trebeschi2019,Cheerla2019}.
+Such approaches are appealing because they can capture complementary aspects
+of tumour biology and host physiology that no single modality fully
+represents; however, they introduce new methodological challenges, including
+how to weight modalities of differing reliability and how to handle missing
+modalities without discarding patients \cite{Ma2021}.
+The Dynamic Attention Multimodal (DyAM) framework
+\cite{Vanguri2022} addresses these challenges through a learned, per-patient
+attention mechanism that adaptively weights each available modality and
+naturally accommodates missing data via masking, but its original
+formulation used only a cooperative (softmax/L1-normalised) attention
+mechanism and represented clinical variables as raw numeric features.
+
+A largely unexplored question in this setting is how structured clinical
+variables --- demographics, laboratory values, performance status --- should
+be represented for fusion with imaging- and molecular-derived features.
+The conventional approach treats each clinical variable as an independent
+numeric input, requiring the model to learn inter-variable relationships
+(e.g., the joint prognostic implication of advanced age, low albumin, and
+poor performance status) from a relatively small training set.
+Recent advances in natural language processing (NLP) have shown that
+pretrained sentence encoders can represent complex, multi-attribute entities
+as dense embeddings that preserve semantic similarity
+\cite{Reimers2019,Wang2020MiniLM}, and domain-specific clinical language
+models have been developed for free-text clinical notes
+\cite{Alsentzer2019}.
+However, whether converting \emph{structured, tabular} clinical variables
+into natural-language sentences and encoding them with a general-purpose
+sentence transformer can improve multimodal fusion performance --- as
+opposed to encoding free-text clinical narratives --- has not, to our
+knowledge, been systematically evaluated for ICI response prediction.
+
+A second open question concerns the form of the attention mechanism used to
+combine modalities.
+Cooperative attention mechanisms, which normalise modality weights to sum to
+one via softmax or L1 normalisation, implicitly assume that all modalities
+contribute complementary, additive information.
+An alternative, competitive formulation --- in which each modality's weight
+is determined relative to the others via a one-vs-others (OvO) comparison
+--- may better capture settings where modalities are partially redundant and
+the most informative modality should dominate.
+Whether such a competitive mechanism improves performance, and under what
+modality configurations, remains untested in the multimodal ICI response
+prediction literature.
+
+In this study, we extend the DyAM framework with two contributions and
+evaluate them on a discovery cohort of 247 patients with advanced NSCLC
+treated with ICIs.
+First, we introduce an OvO competitive attention variant
+(\texttt{AttentionMatrixOvO}) and compare it against the original cooperative
+attention across 20 modality combinations using 10-fold cross-validation,
+with a confirmatory repeated-seed evaluation (5~seeds~$\times$~10-fold) across
+21 modality combinations to test the reproducibility of any observed
+difference.
+Second, we convert 13 numeric clinical variables into natural-language
+sentences and encode them with a pretrained sentence transformer
+(MiniLM-L6-v2), comparing this NLP-based representation against raw numeric
+encoding, a domain-specific clinical language model (BioClinBERT), and a
+PCA-compressed variant, evaluated using both binary classification (AUC) and
+survival analysis (Cox regression, time-dependent AUC, Harrell's C-index, and
+Kaplan--Meier stratification).
+Together, these contributions aim to clarify (i) whether competitive
+attention offers a reproducible accuracy advantage over cooperative
+attention in multimodal fusion, or whether the two are functionally
+interchangeable at this sample size, and (ii) whether NLP-based encoding of
+structured clinical data provides a practical, fine-tuning-free improvement
+over conventional numeric representations for both response prediction and
+survival risk stratification.

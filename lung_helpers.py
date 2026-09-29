@@ -48,6 +48,7 @@ import lifelines
 from lifelines import CoxPHFitter
 from lifelines import KaplanMeierFitter
 from lifelines.statistics import logrank_test
+from lifelines.utils import concordance_index
 
 import seaborn as sns
 # sns.set_theme(style="whitegrid")
@@ -421,16 +422,16 @@ def get_clinical_table_v2(path, main_index_col, cohort):
     # Xử lý cột 'pack_years' (số năm hút thuốc): gán 0.0 cho các giá trị không phải số
     df.loc [~df['pack_years'].str.isnumeric(), 'pack_years'] = 0.0
 
-    # Tạo nhãn phân loại: mặc định tất cả bệnh nhân có label = 1 (đáp ứng tốt)
+    # Tạo nhãn phân loại: mặc định tất cả bệnh nhân có label = 1 (KHÔNG đáp ứng, SD/POD)
     df.loc  [ :, 'label' ] = 1
-    
-    # Bệnh nhân có BOR = 1 (không đáp ứng) → label = 0
+
+    # Bệnh nhân có BOR = 1 (CR - đáp ứng hoàn toàn) → label = 0 (ĐÁP ỨNG)
     df.loc  [ df['bor'] == 1, 'label' ] = 0
-    
-    # Bệnh nhân có BOR = 2 (đáp ứng kém) → label = 0
+
+    # Bệnh nhân có BOR = 2 (PR - đáp ứng một phần) → label = 0 (ĐÁP ỨNG)
     df.loc  [ df['bor'] == 2, 'label' ] = 0
-   
-    # In thống kê: tổng số bệnh nhân và số bệnh nhân có label = 0 (không đáp ứng)
+
+    # In thống kê: tổng số bệnh nhân và số bệnh nhân có label = 0 (ĐÁP ỨNG)
     print (len(df), sum(df['label'] == 0 ))
     
     # Trả về DataFrame đã được xử lý
@@ -516,18 +517,60 @@ def get_radiology_table(table_name):
 
 
 def decorate_with_site_index(df):
+    """
+    Gắn nhãn VỊ TRÍ tổn thương (site) cho bảng radiomics dạng dài.
+
+    Dữ liệu radiomics gốc đánh số tổn thương bằng 'lesion_index' (1..6). Hàm này
+    gom các lesion_index đó thành 3 nhóm vị trí giải phẫu và thay 'lesion_index'
+    bằng cột 'site' để các bước sau tách modality theo vị trí (PC/PL/LN).
+    Quy ước: 1,2 = PC (phổi chính/primary), 3,4 = PL (màng phổi/pleural),
+    5,6 = LN (hạch/lymph node).
+
+    ---------------------------------------------------------------------------
+    VÍ DỤ DỮ LIỆU (giả sử mỗi tổn thương có 2 feature: firstorder_Mean, glcm_...)
+
+    TRƯỚC (df đầu vào) — index = (main_index, job_tag, lesion_index):
+        main_index  job_tag              lesion_index | firstorder_Mean  glcm_...
+        R-101       filtered-radiomics   1            | 12.3             0.45
+        R-101       filtered-radiomics   3            | 8.7              0.51
+        R-101       filtered-radiomics   5            | 5.1              0.60
+        R-102       filtered-radiomics   1            | 15.0             0.40
+        R-102       filtered-radiomics   2            | 14.2             0.42
+
+    SAU (df trả về) — 'lesion_index' được thay bằng 'site':
+        main_index  job_tag              site | firstorder_Mean  glcm_...
+        R-101       filtered-radiomics   PC   | 12.3             0.45   (từ lesion 1)
+        R-102       filtered-radiomics   PC   | 15.0             0.40   (từ lesion 1)
+        R-102       filtered-radiomics   PC   | 14.2             0.42   (từ lesion 2)
+        R-101       filtered-radiomics   PL   | 8.7              0.51   (từ lesion 3)
+        R-101       filtered-radiomics   LN   | 5.1              0.60   (từ lesion 5)
+
+    → lesion 1,2 gộp thành site=PC; 3,4 → PL; 5,6 → LN. Giá trị feature giữ
+      nguyên, chỉ đổi nhãn định danh tổn thương từ số sang tên vị trí giải phẫu.
+    ---------------------------------------------------------------------------
+    """
+    # Chuẩn hoá index về đúng 3 cấp (bệnh nhân, loại job radiomics, số thứ tự tổn thương)
     df = df.reset_index().set_index(['main_index', 'job_tag', 'lesion_index'])
+
+    # Đưa index trở lại thành cột thường để lọc bằng boolean mask theo 'lesion_index'
     df_main_index = df.reset_index()
-    data_table_RF_PA = df_main_index[ (df_main_index['lesion_index'] == 1) | (df_main_index['lesion_index'] == 2)]
-    data_table_RF_PL = df_main_index[ (df_main_index['lesion_index'] == 3) | (df_main_index['lesion_index'] == 4)]
-    data_table_RF_LN = df_main_index[ (df_main_index['lesion_index'] == 5) | (df_main_index['lesion_index'] == 6)]
 
-    data_table_RF_PA.loc[:,'site'] = 'PC'
-    data_table_RF_PL.loc[:,'site'] = 'PL'
-    data_table_RF_LN.loc[:,'site'] = 'LN'
+    # Tách 3 nhóm tổn thương theo lesion_index: mỗi vị trí gồm 2 tổn thương
+    data_table_RF_PA = df_main_index[ (df_main_index['lesion_index'] == 1) | (df_main_index['lesion_index'] == 2)]  # PC
+    data_table_RF_PL = df_main_index[ (df_main_index['lesion_index'] == 3) | (df_main_index['lesion_index'] == 4)]  # PL
+    data_table_RF_LN = df_main_index[ (df_main_index['lesion_index'] == 5) | (df_main_index['lesion_index'] == 6)]  # LN
 
+    # Gán tên vị trí cho từng nhóm (dùng .loc để tránh SettingWithCopyWarning)
+    data_table_RF_PA.loc[:,'site'] = 'PC'   # primary / phổi
+    data_table_RF_PL.loc[:,'site'] = 'PL'   # pleural / màng phổi
+    data_table_RF_LN.loc[:,'site'] = 'LN'   # lymph node / hạch
+
+    # Ghép 3 nhóm lại, rồi đặt index mới theo 'site' (thay cho 'lesion_index')
     df_sites = pd.concat([data_table_RF_PA, data_table_RF_PL, data_table_RF_LN]).reset_index().set_index(['main_index', 'job_tag', 'site'])
+
+    # Bỏ cột 'index' thừa sinh ra bởi reset_index() ở trên
     df_sites = df_sites.drop(columns="index")
+
     return df_sites
 
 
@@ -552,34 +595,100 @@ def prepare_rad_modality(df_dict, df, modality_mask, sites, l_idx, name):
 
 
 def prepare_rad_modality_by_size(df_dict, df, modality_mask, sites, name, sort='lesion_index', ascending=True, reduce=False):
+    """
+    Tạo MỘT modality radiomics từ một (hoặc nhiều) vị trí tổn thương, bằng cách
+    chọn ĐÚNG 1 tổn thương đại diện cho mỗi bệnh nhân.
+
+    Một bệnh nhân có thể có nhiều tổn thương ở cùng vị trí (vd 2 tổn thương PC).
+    Model cần đúng 1 vector đặc trưng / bệnh nhân / modality, nên hàm giữ lại
+    tổn thương "đứng đầu" sau khi sắp xếp theo tiêu chí `sort` (mặc định là
+    lesion_index nhỏ nhất; đặt sort='original_shape_VoxelVolume', ascending=False
+    để lấy tổn thương TO nhất — đúng như tên hàm "by_size").
+
+    Hàm cập nhật TẠI CHỖ:
+      - df_dict[name]       : DataFrame đặc trưng radiomics (1 dòng / bệnh nhân),
+                              chỉ gồm cột numeric, đã căn theo modality_mask.
+      - modality_mask[name] : cột bool đánh dấu bệnh nhân nào CÓ modality này.
+    Trả về `modality_site_full` (bảng đầy đủ mọi tổn thương, để tham chiếu/QC).
+
+    Tham số:
+      df           : bảng radiomics đã gắn site (đầu ra của decorate_with_site_index)
+      sites        : vị trí cần lấy, vd 'PC' hoặc ['PC','PL']
+      name         : tên modality để lưu vào df_dict / modality_mask
+      sort         : cột dùng để xếp hạng chọn tổn thương đại diện
+      ascending    : True=lấy giá trị nhỏ nhất, False=lấy lớn nhất (vd thể tích)
+      reduce       : nếu True, thu gọn modality_site_full chỉ còn tổn thương được chọn
+
+    ---------------------------------------------------------------------------
+    VÍ DỤ DỮ LIỆU  (gọi: prepare_rad_modality_by_size(d, df, mask, sites='PC',
+                    name='rad_lesion_pc')  -> mặc định sort='lesion_index')
+
+    TRƯỚC  (df đầu vào — index 3 tầng (main_index, job_tag, site); mỗi BN có thể
+            có NHIỀU tổn thương ở cùng site PC):
+        main_index job_tag              site | lesion_index  fo_Mean  glcm_Contrast
+        R-101      filtered-radiomics   PC   | 1             12.3     0.45
+        R-101      filtered-radiomics   PC   | 2             11.0     0.48   <- BN R-101 có 2 tổn thương PC
+        R-102      filtered-radiomics   PC   | 1             15.0     0.40
+        R-101      pertubation-radiomics PC  | 1             99.9     9.99   <- bị loại (không phải RAD_JOB_TAG)
+        (R-103 không có tổn thương PC nào)
+
+    SAU:
+    (a) df_dict['rad_lesion_pc']  — ĐÚNG 1 dòng / bệnh nhân, index=main_index,
+        chỉ còn cột numeric (đã bỏ lesion_index, job_tag, site):
+            main_index | fo_Mean  glcm_Contrast
+            R-101      | 12.3     0.45     <- giữ lesion_index=1 (nhỏ nhất), bỏ lesion 2
+            R-102      | 15.0     0.40
+            R-103      | NaN      NaN      <- có trong mask nhưng thiếu PC -> NaN
+
+    (b) modality_mask['rad_lesion_pc']  — cột bool:
+            R-101 True | R-102 True | R-103 False
+
+    Nếu muốn lấy tổn thương TO nhất thay vì lesion nhỏ nhất, gọi với
+        sort='original_shape_VoxelVolume', ascending=False
+    -> khi đó R-101 sẽ giữ tổn thương có thể tích lớn nhất thay cho lesion_index=1.
+    ---------------------------------------------------------------------------
+    """
+    # Cho phép truyền 1 site dạng chuỗi ('PC') -> gói thành list ['PC']
     if type(sites)==str: sites=[sites]
 
+    # Lọc chỉ các dòng thuộc (các) vị trí yêu cầu, dựa trên tầng index 'site'
     df_site  = df[df.index.isin(sites, level='site')]
+    # Sao chép & hạ index xuống cột thường để thao tác tự do (bản đầy đủ mọi tổn thương)
     modality_site_full = df_site.copy(deep=True).reset_index()
 
+    # Chỉ giữ radiomics gốc (RAD_JOB_TAG = 'filtered-radiomics'), bỏ bản perturbation
     modality_site = modality_site_full[(modality_site_full['job_tag']==RAD_JOB_TAG)]
-    
+
     # Đảm bảo cột name tồn tại trong modality_mask
     if name not in modality_mask.columns:
         modality_mask[name] = False
-    
+
+    # Đánh dấu True cho mọi bệnh nhân có ít nhất 1 tổn thương ở vị trí này
     modality_mask.loc[modality_site.set_index('main_index').index, name] = True
-    
+
+    # Chọn 1 tổn thương đại diện / bệnh nhân:
+    #   sort_values      -> xếp hạng theo tiêu chí (lesion_index / thể tích...)
+    #   drop_duplicates  -> giữ dòng ĐẦU TIÊN của mỗi main_index (tức tổn thương top-1)
+    #   join(...how=right)-> căn lại theo TẤT CẢ bệnh nhân trong mask (thiếu -> NaN)
     modality_site = modality_site \
         .sort_values(sort, ascending=ascending)\
         .drop_duplicates(subset=['main_index'])\
         .set_index('main_index')\
         .join(modality_mask[name], how='right').drop(columns=name)
 
+    # (tuỳ chọn) Rút gọn bảng đầy đủ chỉ còn đúng các tổn thương đã được chọn
     if reduce:
         modality_site_full = modality_site_full.set_index(['main_index', 'lesion_index']).loc[modality_site.reset_index().set_index(['main_index', 'lesion_index']).dropna().index].reset_index()
-    
+
+    # In phân bố lesion_index đã chọn (QC: xem chủ yếu lấy tổn thương số mấy)
     print (np.unique(  modality_site['lesion_index'].dropna(), return_counts=True))
+    # Bỏ cột định danh lesion_index, chỉ cần vector đặc trưng
     modality_site = modality_site.drop(columns='lesion_index')
-    
+
     # Chỉ giữ lại các cột numeric, loại bỏ các cột string/object như 'job_tag', 'site', etc.
     modality_site = modality_site.select_dtypes(include=[np.number])
 
+    # Đặt index bản đầy đủ về main_index rồi lưu modality vào dict kết quả
     modality_site_full = modality_site_full.set_index('main_index')
     df_dict[name] = modality_site
 
@@ -1601,10 +1710,10 @@ class MultiModalDynamicModelOvO(nn.Module):
             else:
                 l_X_INPUTS[i] = torch.tensor(np.nan_to_num(self.l_scalers[i].transform(X))).float().to(self.device)
                     
-        mask = torch.tensor(arr_MASK).float()
-        
+        mask = torch.tensor(arr_MASK).float().to(self.device)
+
         output, risk_scores, mixing_matrix, ar2, rr2 = self.dyam(l_X_INPUTS, mask)
-        
+
         return self.response_zscore(output).detach().cpu().numpy()
     
     def get_summary_scores(self, l_X_INPUTS, arr_MASK):
@@ -5978,3 +6087,290 @@ def save_table_1D(df_clinical, df_genomic):
     df_comb['Response'] = df_comb['Response'].replace({1:'SD/PD', 0:'PR/CR'})
 
     df_comb.to_excel('./excel/1D.xlsx', sheet_name='1D')
+
+
+# ─────────────────────────────────────────────────────────────
+# Survival Analysis — C-index functions
+# ─────────────────────────────────────────────────────────────
+
+def compute_cindex(summary_df, df_clinical, col='score'):
+    # Tính Harrell's C-index trên toàn bộ patients (pooled across folds).
+    # score cao = nguy cơ cao = PFS ngắn → negate trước khi truyền vào concordance_index.
+    # pfs_censor=1 nghĩa là event thực sự xảy ra (progression/death), 0 là censored.
+    df = summary_df[[col]].join(df_clinical[['pfs', 'pfs_censor']], how='inner').dropna()
+    return concordance_index(
+        event_times=df['pfs'],
+        predicted_scores=-df[col],
+        event_observed=df['pfs_censor']
+    )
+
+
+def compute_cindex_bootstrap(summary_df, df_clinical, n_boot=1000, col='score', seed=42):
+    # Bootstrap 95% CI cho C-index bằng cách resample patients với replacement.
+    # Dùng percentile method (2.5 / 97.5) — không giả định phân phối chuẩn.
+    # try/except bỏ qua các resample toàn tied (rất hiếm, gây lỗi lifelines).
+    # Returns: (point_estimate, ci_lower, ci_upper)
+    rng = np.random.default_rng(seed)
+    df = summary_df[[col]].join(df_clinical[['pfs', 'pfs_censor']], how='inner').dropna()
+    n = len(df)
+
+    boot_vals = []
+    for _ in range(n_boot):
+        idx = rng.integers(0, n, size=n)
+        sample = df.iloc[idx]
+        try:
+            ci = concordance_index(sample['pfs'], -sample[col], sample['pfs_censor'])
+            boot_vals.append(ci)
+        except Exception:
+            pass
+
+    point = compute_cindex(summary_df, df_clinical, col)
+    lower = np.percentile(boot_vals, 2.5)
+    upper = np.percentile(boot_vals, 97.5)
+    return point, lower, upper
+
+
+def compare_cindex_bootstrap(df_a, df_b, df_clinical, n_boot=1000, seed=42):
+    # Bootstrap p-value cho ΔC = C(model_b) - C(model_a).
+    # Null hypothesis: ΔC = 0 (hai model tương đương).
+    # p-value = tỉ lệ bootstrap resamples có |ΔC_boot| >= |ΔC_obs| (two-sided).
+    # Cả 2 summary_df phải có cột 'score'; join theo index bệnh nhân trước khi resample
+    # để đảm bảo so sánh trên đúng cùng 1 tập bệnh nhân mỗi lần.
+    # Returns: (obs_delta, p_value, list_of_boot_deltas)
+    rng = np.random.default_rng(seed)
+    df_combined = (
+        df_a[['score']].rename(columns={'score': 'score_a'})
+        .join(df_b[['score']].rename(columns={'score': 'score_b'}))
+        .join(df_clinical[['pfs', 'pfs_censor']])
+        .dropna()
+    )
+    n = len(df_combined)
+
+    obs_delta = (
+        concordance_index(df_combined['pfs'], -df_combined['score_b'], df_combined['pfs_censor']) -
+        concordance_index(df_combined['pfs'], -df_combined['score_a'], df_combined['pfs_censor'])
+    )
+
+    boot_deltas = []
+    for _ in range(n_boot):
+        idx = rng.integers(0, n, size=n)
+        s = df_combined.iloc[idx]
+        try:
+            d = (
+                concordance_index(s['pfs'], -s['score_b'], s['pfs_censor']) -
+                concordance_index(s['pfs'], -s['score_a'], s['pfs_censor'])
+            )
+            boot_deltas.append(d)
+        except Exception:
+            pass
+
+    p_val = np.mean(np.abs(boot_deltas) >= np.abs(obs_delta))
+    return obs_delta, p_val, boot_deltas
+
+
+def compute_cindex_per_fold(summary_df, df_clinical, col='score'):
+    # Tính C-index riêng cho từng fold trong 10-fold CV.
+    # Yêu cầu summary_df có cột 'fold' (được tạo tự động bởi train()).
+    # Cho phép paired statistical test (mỗi fold = 1 observation paired).
+    # CI 95% dùng t-distribution approximation trên 10 giá trị fold.
+    # Returns: dict với 'per_fold' (list 10 values), 'mean', 'std', 'ci_95' (tuple).
+    df = summary_df[[col, 'fold']].join(df_clinical[['pfs', 'pfs_censor']], how='inner').dropna()
+
+    ci_per_fold = []
+    for fold_id in sorted(df['fold'].unique()):
+        fold_df = df[df['fold'] == fold_id]
+        ci = concordance_index(fold_df['pfs'], -fold_df[col], fold_df['pfs_censor'])
+        ci_per_fold.append(ci)
+
+    mean_ci = np.mean(ci_per_fold)
+    std_ci = np.std(ci_per_fold)
+    n = len(ci_per_fold)
+    return {
+        'per_fold': ci_per_fold,
+        'mean': mean_ci,
+        'std': std_ci,
+        'ci_95': (
+            mean_ci - 1.96 * std_ci / np.sqrt(n),
+            mean_ci + 1.96 * std_ci / np.sqrt(n)
+        )
+    }
+
+
+def paired_cindex_test(summary_df_a, summary_df_b, df_clinical):
+    # Wilcoxon signed-rank test so sánh per-fold C-index của 2 models.
+    # Paired design: fold i của model A vs fold i của model B → loại bỏ fold-level variance.
+    # Wilcoxon được chọn thay t-test vì n=10 folds quá nhỏ để giả định phân phối chuẩn.
+    # Returns: (statistic, p_value, ci_a_per_fold, ci_b_per_fold)
+    from scipy.stats import wilcoxon
+    ci_a = compute_cindex_per_fold(summary_df_a, df_clinical)['per_fold']
+    ci_b = compute_cindex_per_fold(summary_df_b, df_clinical)['per_fold']
+    stat, p = wilcoxon(ci_a, ci_b, alternative='two-sided')
+    return stat, p, ci_a, ci_b
+
+
+# ── Prompt 2: Time-Dependent AUC + Multivariate Cox ──────────────────────────
+
+def compute_tdauc(summary_df, df_clinical, times=[6, 12, 18], col='score'):
+    # Time-dependent AUC (cumulative/dynamic) tại các mốc thời gian cụ thể.
+    # Dùng sksurv.metrics.cumulative_dynamic_auc (thư viện scikit-survival).
+    # times: list tháng, mặc định [6, 12, 18].
+    # Returns: dict {t: auc_t, ..., 'mean_auc': mean_auc}
+    from sksurv.metrics import cumulative_dynamic_auc
+    from sksurv.util import Surv
+
+    df = summary_df[[col]].join(df_clinical[['pfs', 'pfs_censor']], how='inner').dropna()
+
+    y = Surv.from_arrays(event=df['pfs_censor'].astype(bool), time=df['pfs'])
+    risk_scores = df[col].values
+
+    # Chỉ giữ timepoints nằm trong range hợp lệ của data
+    t_min = df['pfs'].min()
+    t_max = df['pfs'].max() * 0.98
+    valid_times = [t for t in times if t_min < t < t_max]
+    if not valid_times:
+        raise ValueError(f"Không có timepoint nào trong range ({t_min:.1f}, {t_max:.1f}). "
+                         f"Timepoints yêu cầu: {times}")
+
+    auc_vals, mean_auc = cumulative_dynamic_auc(y, y, risk_scores, valid_times)
+
+    result = {t: float(auc) for t, auc in zip(valid_times, auc_vals)}
+    result['mean_auc'] = float(mean_auc)
+    return result
+
+
+def generate_tdauc_comparison_plot(results_dict, times=[6, 12, 18], panel=None):
+    # Line plot: x=timepoint (tháng), y=AUC(t), mỗi line là 1 model.
+    # results_dict: {'model_name': tdauc_result_dict, ...}
+    # Chỉ vẽ các timepoints có trong data của từng model.
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for model_name, result in results_dict.items():
+        plot_times = [t for t in times if t in result]
+        ys = [result[t] for t in plot_times]
+        if plot_times:
+            ax.plot(plot_times, ys, marker='o', label=model_name)
+
+    ax.axhline(0.5, color='gray', linestyle='--', linewidth=0.8, label='Random (AUC=0.5)')
+    ax.set_xlabel('Time (months)')
+    ax.set_ylabel('Time-Dependent AUC')
+    ax.set_xticks(times)
+    ax.legend(fontsize=8, bbox_to_anchor=(1.01, 1), loc='upper left')
+    ax.set_ylim(0.4, 1.0)
+    if panel:
+        ax.set_title(panel)
+    plt.tight_layout()
+    return ax
+
+
+def compute_multivariate_cox(summary_df, df_clinical,
+                              covariates=['age', 'ecog', 'albumin', 'dnlr', 'liver_mets'],
+                              col='score'):
+    # Multivariate Cox PH: model score + clinical covariates → PFS.
+    # Score được scale [0,1] trước khi fit để HR có thể so sánh giữa models.
+    # penalizer=0.1 để tránh overfitting khi covariates có collinearity.
+    # Returns: CoxPHFitter object (dùng .summary để lấy HR, p-value, 95% CI).
+    available_covs = [c for c in covariates if c in df_clinical.columns]
+    df = summary_df[[col]].join(
+        df_clinical[available_covs + ['pfs', 'pfs_censor']], how='inner'
+    ).dropna()
+
+    score_range = df[col].max() - df[col].min()
+    if score_range > 0:
+        df[col] = (df[col] - df[col].min()) / score_range
+
+    cph = CoxPHFitter(penalizer=0.1)
+    cph.fit(df, duration_col='pfs', event_col='pfs_censor')
+    return cph
+
+
+def generate_forest_plot(cph_results_dict, panel=None):
+    # Forest plot: HR (95% CI) cho biến 'score' từ nhiều CoxPHFitter objects.
+    # Đường đỏ đứt tại HR=1 (null hypothesis).
+    # cph_results_dict: {'model_name': CoxPHFitter_object, ...}
+    fig, ax = plt.subplots(figsize=(9, max(3, len(cph_results_dict) * 0.8 + 1)))
+    y_pos = list(range(len(cph_results_dict)))
+
+    for i, (name, cph) in enumerate(cph_results_dict.items()):
+        try:
+            row = cph.summary.loc['score']
+        except KeyError:
+            continue
+        hr = row['exp(coef)']
+        lo = row['exp(coef) lower 95%']
+        hi = row['exp(coef) upper 95%']
+        p  = row['p']
+        ax.errorbar(hr, i, xerr=[[hr - lo], [hi - hr]], fmt='o',
+                    color='steelblue', capsize=5, markersize=7)
+        p_str = f'{p:.3f}' if p >= 0.001 else '<0.001'
+        ax.text(hi + 0.05, i, f'HR={hr:.2f} [{lo:.2f}–{hi:.2f}], p={p_str}',
+                va='center', fontsize=8)
+
+    ax.axvline(1.0, color='red', linestyle='--', linewidth=0.8)
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(list(cph_results_dict.keys()), fontsize=9)
+    ax.set_xlabel('Hazard Ratio (95% CI)')
+    ax.invert_yaxis()
+    if panel:
+        ax.set_title(panel)
+    plt.tight_layout()
+    return ax
+
+
+# ── Prompt 3: Calibration — Brier Score ──────────────────────────────────────
+
+def compute_brier_score_curve(summary_df, df_clinical, times=None, col='score'):
+    # Integrated Brier Score (IBS) + Brier score tại từng timepoint.
+    # IBS < 0.25 = tốt hơn random (baseline null model).
+    # Dùng Cox PH đơn biến để chuyển risk score → survival probability S(t|x).
+    # times: array timepoints (tháng); nếu None → 30 điểm từ Q10 đến Q90.
+    # Returns: (times_arr, brier_vals, ibs)
+    from sksurv.metrics import brier_score, integrated_brier_score
+    from sksurv.util import Surv
+
+    df = summary_df[[col]].join(df_clinical[['pfs', 'pfs_censor']], how='inner').dropna()
+    y = Surv.from_arrays(event=df['pfs_censor'].astype(bool), time=df['pfs'])
+
+    if times is None:
+        times = np.linspace(df['pfs'].quantile(0.1), df['pfs'].quantile(0.9), 30)
+
+    # Giới hạn times trong range hợp lệ (tránh extrapolation ngoài data)
+    t_min = df['pfs'].min() + 1e-6
+    t_max = df['pfs'].max() - 1e-6
+    times = np.array([t for t in times if t_min < t < t_max])
+    if len(times) == 0:
+        raise ValueError("Không có timepoint nào trong range hợp lệ của PFS data.")
+
+    # Fit Cox PH đơn biến để lấy survival function S(t|score)
+    df_cox = df[[col, 'pfs', 'pfs_censor']].copy()
+    score_std = df_cox[col].std()
+    if score_std > 0:
+        df_cox[col] = (df_cox[col] - df_cox[col].mean()) / score_std
+
+    cph = CoxPHFitter(penalizer=0.1)
+    cph.fit(df_cox, duration_col='pfs', event_col='pfs_censor')
+
+    # S(t|x): shape (n_patients, n_times)
+    surv_fns = cph.predict_survival_function(df_cox[[col]], times=times)
+    surv_probs = surv_fns.values.T  # transpose: (n_patients, n_times)
+
+    times_arr, brier_vals = brier_score(y, y, surv_probs, times)
+    ibs = integrated_brier_score(y, y, surv_probs, times)
+
+    return times_arr, brier_vals, ibs
+
+
+def generate_brier_score_plot(brier_results_dict, panel=None):
+    # Line plot Brier score theo thời gian + IBS trong legend.
+    # brier_results_dict: {'model_name': (times_arr, brier_vals, ibs), ...}
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for name, (times_arr, brier_vals, ibs) in brier_results_dict.items():
+        ax.plot(times_arr, brier_vals, label=f'{name} (IBS={ibs:.3f})')
+
+    ax.axhline(0.25, color='gray', linestyle='--', linewidth=0.8, label='Random (BS=0.25)')
+    ax.set_xlabel('Time (months)')
+    ax.set_ylabel('Brier Score')
+    ax.legend(fontsize=8, bbox_to_anchor=(1.01, 1), loc='upper left')
+    ax.set_ylim(0, 0.35)
+    if panel:
+        ax.set_title(panel)
+    plt.tight_layout()
+    return ax

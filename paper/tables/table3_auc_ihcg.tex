@@ -1,0 +1,20 @@
+%% tables/table3_auc_ihcg.tex
+\begin{table}[H]
+\caption{AUC comparison across clinical encoding strategies --- IHC-G arm.
+  Base modalities: CT radiomics (PC, PL, LN), pathology IHC-G (GLCM texture),
+  genomics, and PD-L1~TPS.
+  All other details as in Table~\ref{tab:auc_ihca}.
+  $^\dagger$Best-performing NLP variant and overall best model.}
+\label{tab:auc_ihcg}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Model} & \textbf{AUC} & \textbf{95\%~CI} & \boldmath{$\Delta$}\textbf{AUC} \\
+\midrule
+No clinical (baseline)  & 0.784 & [0.717--0.850] & (ref) \\
++ Labs (13-dim numeric) & 0.788 & [0.723--0.853] & $+0.004$ \\
+\textbf{+ NLP raw (384-dim)}\textsuperscript{$\dagger$}
+                        & \textbf{0.813} & \textbf{[0.753--0.874]} & $\mathbf{+0.030}$ \\
++ NLP-PCA16 (16-dim)    & 0.812 & [0.751--0.873] & $+0.028$ \\
+\bottomrule
+\end{tabular}
+\end{table}

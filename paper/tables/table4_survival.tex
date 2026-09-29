@@ -1,0 +1,39 @@
+%% tables/table4_survival.tex
+\begin{table}[H]
+\caption{Survival analysis results across all model variants.
+  Discovery cohort ($n = 247$; 209 events, 84.6\%; median PFS 2.7~months).
+  C-index: Harrell's concordance index with bootstrap 95\%~CI (1{,}000
+  resamples). Cox HR: hazard ratio from multivariate Cox proportional
+  hazards regression adjusted for age, ECOG, albumin, dNLR, and liver
+  metastases (95\%~CI; Wald $p$-value). tdAUC: time-dependent AUC at
+  12~months. IBS: Integrated Brier Score (lower is better;
+  $< 0.25$ indicates better-than-random calibration).
+  All Cox $p < 0.001$.
+  Bold: best value per column within each IHC arm.}
+\label{tab:survival}
+\small
+\begin{tabular}{@{}p{3.4cm}ccccc@{}}
+\toprule
+\textbf{Model} &
+\textbf{C-index} & \textbf{[95\%~CI]} &
+\textbf{Cox HR} & \textbf{[95\%~CI]} &
+\textbf{IBS} \\
+\midrule
+\multicolumn{6}{l}{\textit{IHC-A arm}} \\
+No clinical          & 0.623 & [0.580--0.665] & 5.30 & [3.10--9.07]   & 0.1745 \\
++ Labs               & 0.626 & [0.583--0.669] & 5.31 & [2.88--9.79]   & 0.1739 \\
++ NLP raw            & 0.625 & [0.583--0.663] & 5.91 & [3.40--10.25]  & 0.1723 \\
+\textbf{+ NLP-PCA16} & \textbf{0.628} & \textbf{[0.584--0.668]}
+                     & \textbf{6.07} & \textbf{[3.50--10.52]}
+                     & \textbf{0.1716} \\
+\midrule
+\multicolumn{6}{l}{\textit{IHC-G arm}} \\
+No clinical          & 0.626 & [0.583--0.665] & 4.74 & [2.82--7.97]  & 0.1748 \\
++ Labs               & \textbf{0.632} & \textbf{[0.587--0.675]} & 4.49 & [2.56--7.89]  & 0.1746 \\
+\textbf{+ NLP raw}   & \textbf{0.632} & \textbf{[0.591--0.672]}
+                     & \textbf{4.97} & \textbf{[2.98--8.31]}
+                     & \textbf{0.1736} \\
++ NLP-PCA16          & 0.631 & [0.590--0.672] & 4.69 & [2.86--7.68]  & 0.1736 \\
+\bottomrule
+\end{tabular}
+\end{table}

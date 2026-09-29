@@ -2,7 +2,145 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Running experiments
+## Documentation convention
+
+When creating any file inside `document/`, follow this folder naming rule:
+
+1. **Check today's date** using `currentDate` from context (format `YYYY-MM-DD`).
+2. **Check if a dated folder already exists** for today under `document/` (pattern: `YYYY-MM-DD_*`).
+3. **If no folder for today exists**, create one named `YYYY-MM-DD_<topic>` where `<topic>` is a short English slug (2–4 words, lowercase, hyphen-separated) derived from the research topic of the session (e.g., `2026-06-08_pathology-pdl1-glcm`).
+4. **If a folder for today already exists**, place the file in that existing folder (do not create a second dated folder unless the topic is clearly different).
+5. Write the `.md` file inside that dated folder — never write documentation files directly under `document/` root.
+6. **NEVER delete or move existing folders** inside `document/` (e.g., `data/`, `base-model/`, etc.). This rule only applies to *new* files being created.
+
+Example structure:
+```
+document/
+  data/                              ← existing folder, do NOT touch
+  base-model/                        ← existing folder, do NOT touch
+  2026-06-08_pathology-pdl1-glcm/   ← new dated folder for new docs
+    lung_pathology_pdl1_glcm_v3.md
+  2026-06-09_nlp-clinical-embedding/
+    clinical_nlp_embedding.md
+```
+
+## Session handoff rule
+
+Whenever the user asks to **summarize the session** (e.g. "summarize session", "summize session",
+"tổng hợp/summary session", "tạo handoff"), write a handoff file:
+
+1. Path: `document/handoff/handoff_<YYYY-MM-DD>.md` (today's date from `currentDate`). The `handoff/`
+   folder is the ONE exception to the "dated subfolder" rule above — handoff files live directly in it.
+2. If a handoff file for today already exists, append a new timestamped section rather than overwriting.
+3. Content = context for a NEW session with no prior memory: what the session worked on, key findings
+   and decisions, current state of any in-progress plan/loop (which step, what's next), relevant file
+   paths, and known gotchas. Write it so a fresh session can resume with zero extra questions.
+
+## Full evaluation rule
+
+Whenever training/evaluating a method or config change with a real conclusion in mind (new attention
+variant, new modality encoding, new baseline, etc.) — not a quick debug/smoke run — always evaluate on
+**all 21 modality combinations from the original paper** (`Figures-Finalized.ipynb` cell 18), not just
+the 4 primary benchmarks (BM1–BM4). The 21 combos are enumerated in `PAPER_COMBOS` in
+`experiments/allcombo/run_paper_combos.py` and documented in `result/training-results.md` §2.5/§2.8.
+
+- BM1–BM4 are a convenient 4-combo subset for quick comparison, not a substitute for the full sweep —
+  prior runs (`result/training-results.md` §2.5) showed rankings between methods can flip between small
+  and large combos (e.g. DyAM only beats `uniform_avg` at k=2 sources, never at k≥3), so a BM-only
+  comparison can hide a false win/loss.
+- Use the standard 5-seed × 10-fold harness (`result/training-results.md` §0) for the full sweep, the
+  same way `run_paper_combos.py` does.
+- Log the full-sweep results per the Result logging rule below (one entry per experiment, not one row
+  per combo — a summary table across the 21 combos is enough, matching the style of §2.5/§2.8).
+
+## Result logging rule
+
+After **any** training/experiment run finishes (whether the result is positive, negative, or a wash),
+append an entry to `result/training-results.md` — never overwrite prior entries. Each entry must include:
+
+1. Experiment name/question + date.
+2. Script/notebook run + path to the raw output (`experiments/results/*.json`, `excel/*.xlsx`, etc.).
+3. **Full training config**: epochs, lr, alpha, beta, folds, seeds, `cross_modality_enabled`,
+   `attention_gate_enabled`, model type (`train`/`train_ovo`/`train_gmu`/`train_uniform_avg`/`train_LR`/...),
+   modality combo, cohort/dataset used, l1_filter if any — call out any deviation from the standard config
+   documented in `result/training-results.md` §0.
+4. Result numbers: AUC (+CI if available), or C-index/HR/tdAUC for survival runs, mean±sd if multi-seed.
+5. A one-line verdict (KEEP/DELETE, positive/negative/on par with baseline).
+
+This applies even to negative results — the project's established discipline is to record failed
+experiments too, so they aren't re-run blindly in a later session.
+
+## Figure layout check rule
+
+The paper's schematic figures are hand-positioned matplotlib scripts
+(`paper/generate_fig*_demo.py`) with no auto-layout, so labels silently overflow their boxes or
+collide when text/font/geometry changes. **Eyeballing the rendered PNG is not sufficient** — it has
+missed real overflows before.
+
+After editing ANY `paper/generate_fig*.py`, run:
+
+```bash
+python paper/check_figures.py     # exit 0 = clean, 1 = layout errors
+```
+
+It re-executes each figure script and measures real text bounding boxes (`get_window_extent`),
+reporting three error classes: `TEXT-OVERLAP` (labels colliding), `BOX-OVERFLOW` (label wider than
+its containing box), `FIG-OVERFLOW` (only checked when the script does NOT save with
+`bbox_inches='tight'`, since tight-bbox expands the canvas instead of clipping).
+
+Then re-render the figure(s), view the PNG to confirm it still reads well, and rebuild the paper.
+When adding a new figure script, add it to `FIG_SCRIPTS` in `check_figures.py`.
+
+## Table 1 (patient characteristics) rule
+
+`paper/tables/table1_patients.tex` is **generated**, not hand-written:
+
+```bash
+python paper/make_table1.py            # writes the .tex
+python paper/make_table1.py --dry-run  # print only
+```
+
+Never edit that .tex by hand — re-run the script instead (and port the numbers into
+`paper/word_export/build_manuscript_docx.py`). Two traps the script exists to prevent:
+
+- **Cohort join**: only `discovery` joins the omnibus inventory by `dmp_pt_id`. `rad_valid` joins by
+  `radiology_accession_number`/`did_acc`, `path_valid` by `pdl1_image_id`/`slide_id`
+  (see `document/data/omnibus-inventory-analysis.md` §1.1). The omnibus file has **366 rows** but the
+  discovery cohort is **247** — a hand-written Table 1 previously reported the 366-row demographics
+  under an "n = 247" heading and went unnoticed for months.
+- **`pfs_censor` = 1 means EVENT observed**, matching how the code passes it to lifelines
+  `event_observed=`. Do not flip it.
+
+Rounding uses half-up (`Decimal`), not `f'{x:.1f}'` — the latter turns a true median of 2.55 into 2.5.
+
+## Word manuscript export rule
+
+The Word export pipeline is a SINGLE self-contained script:
+`paper/word_export/build_manuscript_docx.py` (OMML equation builder embedded inside, no other
+local imports). Do NOT rebuild it from scratch.
+
+**Trigger — runs in two situations:**
+- When the user asks to convert/export the paper to Word (docx).
+- **Automatically every time the user asks to compile the paper PDF** (`latexmk`/`pdflatex` on
+  `paper/main.tex`): after the PDF build succeeds, also run the Word export in the same task so
+  `paper/manuscript_word.docx` never drifts out of date. The user should not have to ask.
+
+**How:**
+1. **Run:** `python paper/word_export/build_manuscript_docx.py` → outputs `paper/manuscript_word.docx`
+   (auto-falls back to `_v2`, `_v3`... if the target is locked open in Word).
+2. **Content is hand-ported** from `paper/sections/*.tex` + `paper/tables/*.tex` into the script —
+   if the LaTeX sections changed since the last export, FIRST update the corresponding
+   text/tables inside `build_manuscript_docx.py` to match (numbers must stay identical to the
+   LaTeX version), THEN run it.
+3. **Figures:** the script embeds PNG only. Figures that exist only as PDF must first be converted:
+   `pdftocairo -png -r 200 -singlefile paper/figures/<fig>.pdf paper/figures/converted/<fig>`
+   (pdftocairo ships with MiKTeX). Already-converted PNGs live in `paper/figures/converted/`.
+4. **Math:** all equations use native Word OMML (namespace `m` inside the script) —
+   display equations via `add_equation(...)`, inline math inside sentences via
+   `P_mix("text ", IM(...), " text")`; figure captions accept a list of parts too.
+   Never render math as plain Unicode text (sub/superscript chars) — that was explicitly rejected.
+5. Format: plain scientific-paper layout (Title/Abstract/Keywords/IMRaD/Declarations/numbered
+   references), NOT the MDPI template.
 
 All scripts must be run from the `code/` directory. Data files are expected at `../datasets/` (one level up).
 

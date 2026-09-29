@@ -1,0 +1,115 @@
+{
+  "note": "meta-LR coef per modality, gộp 5 seed x 10 fold. base-pred z-score theo train nên coef so sánh được.",
+  "benchmarks": {
+    "BM1": {
+      "modalities": [
+        "rad_lesion_pc",
+        "rad_lesion_pl",
+        "rad_lesion_ln",
+        "path_ihc_glcm",
+        "gen_driver_mut_amp",
+        "cnl_pdl1_score"
+      ],
+      "weights": {
+        "rad_lesion_pc": {
+          "mean": 0.7051331503289895,
+          "sd": 0.17065396025674753,
+          "mean_abs": 0.7051331503289895
+        },
+        "rad_lesion_pl": {
+          "mean": 0.3198669417933509,
+          "sd": 0.3704840495664874,
+          "mean_abs": 0.39850596929455095
+        },
+        "rad_lesion_ln": {
+          "mean": 1.2696008604069735,
+          "sd": 0.29372596218472113,
+          "mean_abs": 1.2696008604069735
+        },
+        "path_ihc_glcm": {
+          "mean": -0.04964427532639793,
+          "sd": 0.23550156253036061,
+          "mean_abs": 0.17217315911342004
+        },
+        "gen_driver_mut_amp": {
+          "mean": 0.6407270067215306,
+          "sd": 0.11665723715047958,
+          "mean_abs": 0.6407270067215306
+        },
+        "cnl_pdl1_score": {
+          "mean": 0.7683515409946767,
+          "sd": 0.0742767473312745,
+          "mean_abs": 0.7683515409946767
+        },
+        "intercept": {
+          "mean": 0.4334499345913897,
+          "sd": 0.06984258846304382,
+          "mean_abs": 0.4334499345913897
+        }
+      },
+      "story": {
+        "rad_mean_abs": 0.7910799933435047,
+        "nonrad_mean_abs": 0.5270839022765424,
+        "ratio_nonrad_over_rad": 0.6662839494256693
+      }
+    },
+    "BM2": {
+      "modalities": [
+        "rad_lesion_pc",
+        "rad_lesion_pl",
+        "rad_lesion_ln",
+        "path_ihc_glcm",
+        "gen_driver_mut_amp",
+        "cnl_pdl1_score",
+        "cnl_dem_labs"
+      ],
+      "weights": {
+        "rad_lesion_pc": {
+          "mean": 0.7032062082026849,
+          "sd": 0.1685808212983318,
+          "mean_abs": 0.7032062082026849
+        },
+        "rad_lesion_pl": {
+          "mean": 0.3115753495485366,
+          "sd": 0.3765841037601228,
+          "mean_abs": 0.39960590646458805
+        },
+        "rad_lesion_ln": {
+          "mean": 1.2486356278871313,
+          "sd": 0.288850986591483,
+          "mean_abs": 1.2486356278871313
+        },
+        "path_ihc_glcm": {
+          "mean": -0.046669091047661954,
+          "sd": 0.2358620641536474,
+          "mean_abs": 0.17162724424309367
+        },
+        "gen_driver_mut_amp": {
+          "mean": 0.6202102715730531,
+          "sd": 0.11891799186108122,
+          "mean_abs": 0.6202102715730531
+        },
+        "cnl_pdl1_score": {
+          "mean": 0.7392615263081446,
+          "sd": 0.07882014324920765,
+          "mean_abs": 0.7392615263081446
+        },
+        "cnl_dem_labs": {
+          "mean": 0.16439681948970183,
+          "sd": 0.11114637179125884,
+          "mean_abs": 0.17172588634724137
+        },
+        "intercept": {
+          "mean": 0.44004220190563814,
+          "sd": 0.06970259894706447,
+          "mean_abs": 0.44004220190563814
+        }
+      },
+      "story": {
+        "rad_mean_abs": 0.7838159141848013,
+        "nonrad_mean_abs": 0.42570623211788317,
+        "ratio_nonrad_over_rad": 0.5431201694349801
+      }
+    }
+  }
+}

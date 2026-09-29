@@ -1,0 +1,106 @@
+{
+  "A hand-crafted (BM1)": {
+    "modalities": [
+      "rad_lesion_pc",
+      "rad_lesion_pl",
+      "rad_lesion_ln",
+      "path_ihc_glcm",
+      "gen_driver_mut_amp",
+      "cnl_pdl1_score"
+    ],
+    "uniform": [
+      0.7746469049694855,
+      0.018593642446832977
+    ],
+    "dyam": [
+      0.7595292066259809,
+      0.022122351726044796
+    ]
+  },
+  "B embed cả 2": {
+    "modalities": [
+      "rad_emb",
+      "path_emb",
+      "gen_driver_mut_amp",
+      "cnl_pdl1_score"
+    ],
+    "uniform": [
+      0.6629991281604184,
+      0.023213177052784712
+    ],
+    "dyam": [
+      0.6394420226678291,
+      0.01956397142325156
+    ]
+  },
+  "C embed path (rad HC)": {
+    "modalities": [
+      "rad_lesion_pc",
+      "rad_lesion_pl",
+      "rad_lesion_ln",
+      "path_emb",
+      "gen_driver_mut_amp",
+      "cnl_pdl1_score"
+    ],
+    "uniform": [
+      0.753129904097646,
+      0.0136445819177537
+    ],
+    "dyam": [
+      0.7467829119442022,
+      0.015268970419852625
+    ]
+  },
+  "D embed rad (path HC)": {
+    "modalities": [
+      "rad_emb",
+      "path_ihc_glcm",
+      "gen_driver_mut_amp",
+      "cnl_pdl1_score"
+    ],
+    "uniform": [
+      0.7191630340017439,
+      0.01346313414738054
+    ],
+    "dyam": [
+      0.7067829119442022,
+      0.015673168572720383
+    ]
+  },
+  "A+Labs hand-crafted": {
+    "modalities": [
+      "rad_lesion_pc",
+      "rad_lesion_pl",
+      "rad_lesion_ln",
+      "path_ihc_glcm",
+      "gen_driver_mut_amp",
+      "cnl_pdl1_score",
+      "cnl_dem_labs"
+    ],
+    "uniform": [
+      0.7665213600697471,
+      0.010981026325254599
+    ],
+    "dyam": [
+      0.7638709677419355,
+      0.017953609416204077
+    ]
+  },
+  "B+Labs embed cả 2": {
+    "modalities": [
+      "rad_emb",
+      "path_emb",
+      "gen_driver_mut_amp",
+      "cnl_pdl1_score",
+      "cnl_dem_labs"
+    ],
+    "uniform": [
+      0.6816041848299912,
+      0.017942428933187832
+    ],
+    "dyam": [
+      0.6478291194420227,
+      0.017817402245818372
+    ]
+  }
+}

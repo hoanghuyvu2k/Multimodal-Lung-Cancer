@@ -2,3 +2,22 @@ excel/
 __pycache__/
 omnibus/
 vector_figs/
+
+# --- Cache / ket qua trung gian sinh lai duoc ---
+# 704 file .npy embedding CT (~4.8 MB)
+experiments/foundation_embed/cache/
+# 174 file CSV diem tung benh nhan (~4.7 MB); ban tom tat nam o experiments/results/*.json
+experiments/results/scores/
+# PNG do pdftocairo tao tu PDF hinh
+paper/figures/converted/
+
+# --- Du lieu tho / embedding (du lieu that de o ../datasets) ---
+*.parquet
+
+# --- File tam cua editor & ban backup ---
+.vscode/
+*.bak
+images/Screenshot*.png
+
+# --- Ban Word du phong khi file chinh dang mo trong Word ---
+paper/manuscript_word_v*.docx

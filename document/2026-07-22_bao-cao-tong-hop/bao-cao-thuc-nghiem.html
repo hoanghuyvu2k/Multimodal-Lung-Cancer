@@ -1,0 +1,404 @@
+<title>Tổng hợp thực nghiệm 21–22/07 — Dự đoán đáp ứng miễn dịch đa nguồn</title>
+<style>
+  :root{
+    --bg:#eef1f4; --surface:#ffffff; --surface-2:#f6f8fa;
+    --ink:#16212b; --muted:#586878; --faint:#8595a3; --line:#e0e6ec;
+    --accent:#1f6f83; --accent-soft:#e3eef1; --accent-ink:#12525f;
+    --neg:#b3603a; --neg-soft:#f5e7df;
+    --pos:#2f7d5b; --pos-soft:#e2efe9;
+    --warn:#a8792a; --warn-soft:#f3ebd9;
+    --shadow:0 1px 2px rgba(20,40,60,.05),0 8px 24px rgba(20,40,60,.06);
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#0c141b; --surface:#141f29; --surface-2:#101a22;
+      --ink:#e6edf2; --muted:#93a3b1; --faint:#697887; --line:#243240;
+      --accent:#4cb2c8; --accent-soft:#122e38; --accent-ink:#8ed6e5;
+      --neg:#d78a60; --neg-soft:#2b1f17;
+      --pos:#5db991; --pos-soft:#14271f;
+      --warn:#d3ac5e; --warn-soft:#282013;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 28px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#eef1f4; --surface:#ffffff; --surface-2:#f6f8fa;
+    --ink:#16212b; --muted:#586878; --faint:#8595a3; --line:#e0e6ec;
+    --accent:#1f6f83; --accent-soft:#e3eef1; --accent-ink:#12525f;
+    --neg:#b3603a; --neg-soft:#f5e7df; --pos:#2f7d5b; --pos-soft:#e2efe9;
+    --warn:#a8792a; --warn-soft:#f3ebd9;
+    --shadow:0 1px 2px rgba(20,40,60,.05),0 8px 24px rgba(20,40,60,.06);
+  }
+  :root[data-theme="dark"]{
+    --bg:#0c141b; --surface:#141f29; --surface-2:#101a22;
+    --ink:#e6edf2; --muted:#93a3b1; --faint:#697887; --line:#243240;
+    --accent:#4cb2c8; --accent-soft:#122e38; --accent-ink:#8ed6e5;
+    --neg:#d78a60; --neg-soft:#2b1f17; --pos:#5db991; --pos-soft:#14271f;
+    --warn:#d3ac5e; --warn-soft:#282013;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 28px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.55;-webkit-font-smoothing:antialiased;
+    font-variant-numeric:tabular-nums;
+  }
+  .wrap{max-width:1000px;margin:0 auto;padding:28px 20px 80px}
+  header.top{
+    position:sticky;top:0;z-index:10;background:color-mix(in srgb,var(--bg) 88%,transparent);
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--line);
+  }
+  .top .row{max-width:1000px;margin:0 auto;padding:12px 20px;display:flex;
+    justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap}
+  .top .brand{font-weight:700;letter-spacing:-.01em;font-size:15px}
+  .top .brand span{color:var(--accent)}
+  .top .meta{font-size:12.5px;color:var(--muted);letter-spacing:.02em}
+
+  section.slide{
+    background:var(--surface);border:1px solid var(--line);border-radius:14px;
+    padding:30px 32px;margin:20px 0;box-shadow:var(--shadow);
+  }
+  .eyebrow{font-size:11.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent);margin:0 0 8px}
+  .eyebrow .tag{color:var(--faint)}
+  h1{font-size:clamp(28px,4.5vw,42px);line-height:1.08;letter-spacing:-.02em;
+    margin:.1em 0 .35em;text-wrap:balance;font-weight:800}
+  h2{font-size:clamp(20px,2.6vw,26px);line-height:1.15;letter-spacing:-.015em;
+    margin:.1em 0 .5em;text-wrap:balance;font-weight:750}
+  h3{font-size:15px;margin:22px 0 8px;letter-spacing:.01em}
+  p{margin:.4em 0}
+  .lead{font-size:17px;color:var(--ink)}
+  .muted{color:var(--muted)}
+  .small{font-size:13px}
+
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:650;
+    padding:5px 11px;border-radius:999px;border:1px solid transparent;letter-spacing:.01em}
+  .chip.neg{background:var(--neg-soft);color:var(--neg);border-color:color-mix(in srgb,var(--neg) 26%,transparent)}
+  .chip.par{background:var(--surface-2);color:var(--muted);border-color:var(--line)}
+  .chip.pos{background:var(--pos-soft);color:var(--pos);border-color:color-mix(in srgb,var(--pos) 26%,transparent)}
+  .chip.acc{background:var(--accent-soft);color:var(--accent-ink);border-color:color-mix(in srgb,var(--accent) 26%,transparent)}
+  .chip .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr;gap:18px}}
+
+  .tablewrap{overflow-x:auto;margin:12px 0;border:1px solid var(--line);border-radius:10px}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:340px}
+  caption{caption-side:top;text-align:left;font-size:12px;color:var(--faint);padding:8px 12px 6px}
+  th,td{padding:8px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  thead th{font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);
+    background:var(--surface-2);font-weight:650}
+  tbody tr:last-child td{border-bottom:none}
+  td.num{font-variant-numeric:tabular-nums}
+  .hi{color:var(--accent-ink);font-weight:700}
+  .down{color:var(--neg);font-weight:650}
+  .up{color:var(--pos);font-weight:650}
+  tr.best td{background:var(--pos-soft)}
+  tr.base td{background:var(--accent-soft)}
+
+  .take{display:flex;gap:12px;align-items:flex-start;margin-top:16px;padding:13px 16px;
+    background:var(--surface-2);border-left:3px solid var(--accent);border-radius:0 8px 8px 0}
+  .take b{color:var(--ink)}
+  .take .k{flex:none;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--accent);padding-top:2px}
+
+  ul.clean{margin:.4em 0;padding-left:1.15em}
+  ul.clean li{margin:.35em 0}
+
+  /* mini bar chart */
+  .bars{display:flex;flex-direction:column;gap:9px;margin:14px 0}
+  .bar{display:grid;grid-template-columns:130px 1fr 54px;align-items:center;gap:10px;font-size:12.5px}
+  .bar .lab{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .track{height:15px;background:var(--surface-2);border-radius:5px;overflow:hidden;position:relative}
+  .fill{height:100%;border-radius:5px}
+  .bar .val{text-align:right;font-weight:650;font-variant-numeric:tabular-nums}
+  .rand{position:absolute;top:-3px;bottom:-3px;left:calc((0.5 - 0.44)/(0.80-0.44)*100%);
+    width:0;border-left:2px dashed var(--faint)}
+
+  .kpis{display:flex;gap:14px;flex-wrap:wrap;margin:18px 0 4px}
+  .kpi{flex:1 1 150px;background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:14px 16px}
+  .kpi .n{font-size:26px;font-weight:800;letter-spacing:-.02em}
+  .kpi .n.neg{color:var(--neg)} .kpi .n.pos{color:var(--pos)} .kpi .n.acc{color:var(--accent)}
+  .kpi .c{font-size:12.5px;color:var(--muted);margin-top:2px}
+
+  .foot{color:var(--faint);font-size:12px;text-align:center;margin-top:26px;letter-spacing:.02em}
+  .divider{height:1px;background:var(--line);margin:18px 0}
+  .idx{color:var(--faint);font-variant-numeric:tabular-nums}
+</style>
+
+<header class="top">
+  <div class="row">
+    <div class="brand">Đáp ứng miễn dịch NSCLC · <span>Tổng hợp thực nghiệm</span></div>
+    <div class="meta">21 – 22 / 07 / 2026 · 6 nhóm thí nghiệm</div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- TITLE -->
+  <section class="slide">
+    <p class="eyebrow">Báo cáo nội bộ <span class="tag">· cohort MSK-MIND đa nguồn</span></p>
+    <h1>Không mô hình hay đặc trưng phức tạp nào vượt được baseline đơn giản</h1>
+    <p class="lead">Trong hai ngày, tôi kiểm chứng hệ thống liệu <b>fusion attention</b>, <b>feature engineering</b>,
+    <b>foundation embedding</b> (ảnh gốc) hay <b>tabular foundation model</b> có cải thiện dự đoán đáp ứng
+    miễn dịch trên cohort đa nguồn (radiomics · pathology · genomic · PD-L1) hay không.</p>
+    <div class="kpis">
+      <div class="kpi"><div class="n acc">6</div><div class="c">nhóm thí nghiệm chạy</div></div>
+      <div class="kpi"><div class="n">0.78</div><div class="c">trần AUC nội bộ (mọi phương pháp)</div></div>
+      <div class="kpi"><div class="n pos">1</div><div class="c">phát hiện dương: pathology generalize</div></div>
+      <div class="kpi"><div class="n neg">0</div><div class="c">phương pháp vượt baseline uniform_avg</div></div>
+    </div>
+    <div class="take"><span class="k">Thông điệp</span>
+      <span><b>Trần nằm ở dữ liệu</b> (n nhỏ, radiomics không transfer ngoài mẫu), không ở model/feature.
+      Baseline <b>uniform_avg</b> (trung bình có-mask các hồi quy) đã chạm trần; mọi thứ phức tạp hơn chỉ ngang hoặc kém hơn.</span>
+    </div>
+  </section>
+
+  <!-- CONTEXT -->
+  <section class="slide">
+    <p class="eyebrow">Bối cảnh &amp; câu hỏi</p>
+    <h2>Bài toán và cách đo</h2>
+    <div class="grid2">
+      <div>
+        <p>Dự đoán đáp ứng liệu pháp PD-(L)1 ở NSCLC bằng cách kết hợp nhiều nguồn: radiomics (CT), pathology
+        (PD-L1 IHC), genomic, điểm PD-L1, xét nghiệm lâm sàng. Mô hình gốc của bài báo là <b>DyAM</b>
+        (dynamic attention fusion).</p>
+        <h3>Ba câu hỏi kiểm chứng</h3>
+        <ul class="clean small">
+          <li>Attention học của DyAM có hơn trung bình đơn giản không?</li>
+          <li>Đặc trưng tốt hơn (foundation embedding từ ảnh gốc) có phá được trần / rào generalization không?</li>
+          <li>Model hiện đại (TabPFN) có hơn hồi quy tuyến tính trên dữ liệu nhỏ không?</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Quy tắc đánh giá (chống tự huyễn)</h3>
+        <ul class="clean small">
+          <li><b>5-seed × 10-fold</b> (hoán vị phân hoạch) thay vì 1 lần chạy — ước lượng ổn định, chống cherry-pick.</li>
+          <li><b>Paired bootstrap</b> trên bệnh nhân để so có ý nghĩa.</li>
+          <li><b>External validation</b> trên cohort ngoài đơn-modality (path_valid, rad_valid) — thước đo quan trọng nhất.</li>
+        </ul>
+        <div class="take small"><span class="k">Lưu ý</span>
+          <span>AUC nội bộ đã <b>kịch trần ~0.78</b> từ trước; nên trọng tâm là <b>generalization</b> và <b>không thua baseline</b>,
+          không phải đua con số nội bộ.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EXP A -->
+  <section class="slide">
+    <p class="eyebrow"><span class="idx">A</span> · Fusion attention vs trung bình đơn giản</p>
+    <h2>uniform_avg ≥ DyAM/OvO trên mọi tổ hợp nguồn</h2>
+    <div class="chips">
+      <span class="chip neg"><span class="dot"></span>Luận điểm "DyAM tốt hơn khi nhiều nguồn": BÁC BỎ</span>
+      <span class="chip par">26 + 21 tổ hợp · 5-seed</span>
+    </div>
+    <div class="grid2">
+      <div>
+        <p class="small">Chạy đủ mọi tổ hợp ≥2 nguồn. Khoảng cách <b>Δ = uniform − DyAM</b> <b>tăng</b> theo số nguồn k —
+        ngược hẳn kỳ vọng "nhiều nguồn thì attention thắng".</p>
+        <div class="bars small">
+          <div class="bar"><span class="lab">k = 2 nguồn</span>
+            <div class="track"><div class="fill" style="width:6%;background:var(--accent)"></div></div><span class="val">+0.001</span></div>
+          <div class="bar"><span class="lab">k = 3 nguồn</span>
+            <div class="track"><div class="fill" style="width:38%;background:var(--accent)"></div></div><span class="val">+0.007</span></div>
+          <div class="bar"><span class="lab">k = 4 nguồn</span>
+            <div class="track"><div class="fill" style="width:62%;background:var(--accent)"></div></div><span class="val">+0.011</span></div>
+        </div>
+        <p class="small muted">Δ trung bình (uniform − DyAM). DyAM chỉ thắng có ý nghĩa ở 2/26 combo — đều tại k=2.
+        OvO gần như trùng uniform_avg (chênh ±0.005).</p>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <caption>AUC nội bộ (5-seed) tại combo tốt nhất — BM1 (Rad+Path+Gen+PDL1)</caption>
+          <thead><tr><th>Model</th><th>5-seed</th><th>ensemble</th></tr></thead>
+          <tbody>
+            <tr class="base"><td>uniform_avg <span class="muted">(baseline)</span></td><td class="num hi">0.7746</td><td class="num hi">0.7850</td></tr>
+            <tr><td>OvO attention</td><td class="num">0.7728</td><td class="num">0.7843</td></tr>
+            <tr><td>DyAM attention</td><td class="num">0.7595</td><td class="num">0.7752</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="take"><span class="k">Kết luận</span>
+      <span>Attention học <b>không đóng góp gì</b> — nó tái lập phép chia đều 1/Σmask. Càng nhiều nguồn, baseline càng vượt.</span></div>
+  </section>
+
+  <!-- EXP B + C -->
+  <section class="slide">
+    <p class="eyebrow"><span class="idx">B · C</span> · Stacked fusion &amp; rà soát cấu hình</p>
+    <div class="grid2">
+      <div>
+        <h2>Stacked late-fusion</h2>
+        <div class="chips"><span class="chip neg"><span class="dot"></span>Âm — không hơn baseline</span></div>
+        <p class="small">Meta-learner học trọng số modality từ dự đoán out-of-fold. Kỳ vọng: tự hạ radiomics
+        (không generalize). <b>Thực tế ngược lại</b> — meta <b>đề cao radiomics</b> (trọng số cao nhất) và bỏ
+        pathology (≈0), vì học từ tín hiệu in-sample. Ngang uniform_avg (0.752 vs 0.775, ns) nhưng câu chuyện
+        diễn giải thì sai lệch.</p>
+      </div>
+      <div>
+        <h2>Vì sao bài báo báo ~0.79 còn tôi ~0.76?</h2>
+        <div class="chips"><span class="chip acc"><span class="dot"></span>Cấu hình GIỐNG HỆT</span></div>
+        <p class="small">Khác biệt thuần ở cách đo: bài báo báo <b>1 lần chạy</b> trên thứ tự tự nhiên; tôi trung bình
+        <b>5 phân hoạch</b>. Tái lập đúng kiểu 1-lần: <b>BM4 khớp 4 chữ số</b> (0.6932 vs 0.6931), BM1 = 0.7976.
+        Số 0.79 là một phân hoạch thuận lợi, không phải cấu hình tốt hơn.</p>
+      </div>
+    </div>
+    <div class="take"><span class="k">Ý nghĩa</span>
+      <span>Con số nội bộ dao động ~0.02 theo phân hoạch → <b>chênh lệch giữa các model đều nằm trong nhiễu</b>; nên báo cáo 5-seed (trung thực) thay vì 1-lần.</span></div>
+  </section>
+
+  <!-- EXP D -->
+  <section class="slide">
+    <p class="eyebrow"><span class="idx">D</span> · Foundation embedding từ ẢNH GỐC</p>
+    <h2>4 foundation model, 2 modality — không cái nào vượt feature thủ công</h2>
+    <div class="chips">
+      <span class="chip neg"><span class="dot"></span>Âm nhất quán</span>
+      <span class="chip par">WSI 235 slide · CT 237 volume · GPU + Colab</span>
+    </div>
+    <p class="small muted">Thay đặc trưng thủ công (GLCM pathology, radiomics CT) bằng embedding foundation model
+    chạy trực tiếp trên ảnh gốc. Đối chứng sạch: giữ cohort/fusion/eval, chỉ đổi bộ trích đặc trưng.</p>
+    <div class="tablewrap">
+      <table>
+        <caption>AUC per-modality (LR) — nội bộ discovery-CV &amp; external ngoài mẫu</caption>
+        <thead><tr><th>Đặc trưng</th><th>Modality</th><th>nội bộ</th><th>external</th><th>Đánh giá</th></tr></thead>
+        <tbody>
+          <tr class="base"><td>GLCM (thủ công)</td><td>pathology</td><td class="num">0.622</td><td class="num hi">0.765</td><td class="up">generalize tốt</td></tr>
+          <tr><td>Phikon</td><td>pathology</td><td class="num up">0.680</td><td class="num">0.697</td><td class="muted">nội bộ hơn, ext không vượt GLCM</td></tr>
+          <tr class="base"><td>Radiomics (thủ công)</td><td>radiology</td><td class="num">0.582</td><td class="num down">0.461</td><td class="down">không generalize</td></tr>
+          <tr><td>BiomedCLIP 2.5D</td><td>radiology</td><td class="num">0.510</td><td class="num">0.530</td><td class="muted">≈ ngẫu nhiên</td></tr>
+          <tr><td>MedicalNet 3D</td><td>radiology</td><td class="num">0.514</td><td class="num">0.627</td><td class="muted">≈ ngẫu nhiên (ext = nhiễu)</td></tr>
+          <tr><td>fmcib <span class="muted">(cancer-CT, chạy Colab)</span></td><td>radiology</td><td class="num">0.503</td><td class="num">0.546</td><td class="muted">≈ ngẫu nhiên</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="take"><span class="k">Chốt</span>
+      <span>Kể cả <b>fmcib</b> — model 3D chuyên biệt cancer-CT — cũng <b>~ngẫu nhiên nội bộ (0.503)</b>. Ba model CT độc lập cùng hội tụ ~0.51 → loại bỏ caveat "dùng model sai". Embedding CT <b>không mang tín hiệu response</b>.</span></div>
+  </section>
+
+  <!-- EXP E -->
+  <section class="slide">
+    <p class="eyebrow"><span class="idx">E</span> · Embedding trong FUSION đa nguồn</p>
+    <h2>Kết hợp embedding không những không giúp — mà kéo tụt</h2>
+    <div class="chips"><span class="chip neg"><span class="dot"></span>Hại fusion, tỉ lệ với độ nhiễu</span></div>
+    <div class="grid2">
+      <div>
+        <p class="small">Câu hỏi: embedding đơn lẻ yếu, nhưng khi <b>kết hợp</b> (radiology + pathology + Gen + PDL1)
+        có bổ sung tín hiệu bù trừ không? Kết quả: càng thay nhiều imaging bằng embedding, AUC càng giảm.</p>
+        <div class="bars small">
+          <div class="bar"><span class="lab">Thủ công (BM1)</span>
+            <div class="track"><div class="fill" style="width:88%;background:var(--pos)"></div></div><span class="val">0.775</span></div>
+          <div class="bar"><span class="lab">+ fmcib (thêm)</span>
+            <div class="track"><div class="fill" style="width:80%;background:var(--accent)"></div></div><span class="val">0.744</span></div>
+          <div class="bar"><span class="lab">Embed radiology</span>
+            <div class="track"><div class="fill" style="width:66%;background:var(--warn)"></div></div><span class="val">0.719</span></div>
+          <div class="bar"><span class="lab">Embed cả 2</span>
+            <div class="track"><div class="fill" style="width:47%;background:var(--neg)"></div></div><span class="val">0.653</span></div>
+        </div>
+      </div>
+      <div>
+        <p class="small">Thứ tự mức hại khớp hoàn hảo với "độ yếu" của từng embedding: CT-embed (≈ngẫu nhiên) hại nặng,
+        Phikon (có tín hiệu) hại nhẹ. Thêm fmcib vào combo tốt nhất vẫn <b>−0.030</b>.</p>
+        <div class="take small"><span class="k">Ý nghĩa</span>
+          <span>Embedding đưa <b>nhiễu</b> vào một tổ hợp vốn đã tốt với feature thủ công → luôn hại. Giả thuyết "bù trừ trong fusion" bị bác bỏ.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EXP F -->
+  <section class="slide">
+    <p class="eyebrow"><span class="idx">F</span> · TabPFN — tabular foundation model</p>
+    <h2>TabPFN không vượt hồi quy tuyến tính / uniform_avg</h2>
+    <div class="chips"><span class="chip par"><span class="dot"></span>Ngang / không hơn baseline</span>
+      <span class="chip acc">comparator hiện đại cho paper</span></div>
+    <div class="grid2">
+      <div class="tablewrap">
+        <table>
+          <caption>Per-modality: TabPFN vs LR (discovery-CV)</caption>
+          <thead><tr><th>Modality</th><th>LR</th><th>TabPFN</th></tr></thead>
+          <tbody>
+            <tr><td>PD-L1</td><td class="num hi">0.719</td><td class="num">0.710</td></tr>
+            <tr><td>Genomic</td><td class="num hi">0.676</td><td class="num">0.656</td></tr>
+            <tr><td>GLCM pathology</td><td class="num hi">0.576</td><td class="num">0.547</td></tr>
+            <tr><td>Radiomics</td><td class="num">0.576</td><td class="num">0.579</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <caption>Fusion: TabPFN-late vs uniform_avg</caption>
+          <thead><tr><th>Combo</th><th>uniform</th><th>TabPFN</th></tr></thead>
+          <tbody>
+            <tr><td>BM1</td><td class="num hi">0.775</td><td class="num down">0.715</td></tr>
+            <tr><td>BM2</td><td class="num hi">0.767</td><td class="num down">0.719</td></tr>
+            <tr><td>BM3</td><td class="num hi">0.711</td><td class="num down">0.667</td></tr>
+            <tr class="best"><td>BM4 <span class="muted">(2 nguồn)</span></td><td class="num">0.719</td><td class="num up">0.743</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="take"><span class="k">Kết luận</span>
+      <span>TabPFN thắng <b>0/5</b> per-modality, <b>1/4</b> fusion (chỉ BM4 — ít nguồn, sạch). Khớp literature 2025 "established ML matches tabular foundation models". Giữ làm <b>comparator</b>, không phải cải tiến.</span></div>
+  </section>
+
+  <!-- CROSS-CUTTING -->
+  <section class="slide">
+    <p class="eyebrow">Phát hiện xuyên suốt · điểm mạnh nhất cho paper</p>
+    <h2>Generalization là trục có đòn bẩy thật</h2>
+    <div class="grid2">
+      <div>
+        <p>Xuyên qua mọi thí nghiệm, một tín hiệu bền vững nổi lên: <b>pathology transfer được ra ngoài mẫu,
+        radiomics thì không</b> — được cả thí nghiệm của tôi lẫn chính bài báo gốc xác nhận.</p>
+        <div class="bars">
+          <div class="bar"><span class="lab">Pathology (external)</span>
+            <div class="track"><div class="fill" style="width:74%;background:var(--pos)"></div></div><span class="val">0.74–0.77</span></div>
+          <div class="bar"><span class="lab">Radiomics (external)</span>
+            <div class="track"><div class="fill" style="width:24%;background:var(--neg)"></div></div><span class="val">0.43–0.66</span></div>
+        </div>
+        <p class="small muted">Radiomics external thường dưới 0.5 (kém tung đồng xu) và rất bất ổn → học "quirk" của
+        máy chụp, không phải sinh học khối u.</p>
+      </div>
+      <div>
+        <h3>Vì sao đây là đóng góp</h3>
+        <ul class="clean small">
+          <li>"Modality nào generalize" đang là chủ đề nóng trong literature multimodal 2025.</li>
+          <li>Kết hợp với <b>đóng góp NLP-clinical đã có</b> của bạn → câu chuyện "nguồn nào đáng tin + biểu diễn lâm sàng bằng ngôn ngữ".</li>
+          <li>Các kết quả âm (foundation embedding, TabPFN) trở thành <b>ablation nghiêm túc</b>: model đơn giản + hiểu dữ liệu &gt; chạy theo con số.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONCLUSION -->
+  <section class="slide" style="border-color:color-mix(in srgb,var(--accent) 40%,var(--line));background:linear-gradient(180deg,var(--accent-soft),var(--surface) 60%)">
+    <p class="eyebrow">Kết luận &amp; hướng đi</p>
+    <h2>Mọi con đường hội tụ về một thông điệp</h2>
+    <p class="lead">Sau fusion attention · stacked · 4 foundation embedding · TabPFN — <b>không gì vượt được
+    uniform_avg / hồi quy tuyến tính</b> trên đặc trưng thủ công. Trần nằm ở <b>dữ liệu</b> (n nhỏ, radiomics
+    không transfer), không ở model hay feature.</p>
+    <div class="divider"></div>
+    <div class="grid2">
+      <div>
+        <h3>Ba đóng góp cho paper</h3>
+        <ul class="clean small">
+          <li><b>NLP-clinical embedding</b> (đã có) — biểu diễn dữ liệu lâm sàng bằng ngôn ngữ.</li>
+          <li><b>Phát hiện generalization</b> — pathology transfer, radiomics không; một khung "modality nào đáng tin".</li>
+          <li><b>Ablation trung thực</b> — model/feature phức tạp không hơn baseline đơn giản; foundation embedding không phá được rào.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Việc còn lại</h3>
+        <ul class="clean small">
+          <li>Chốt phần thực nghiệm — bằng chứng đã đầy đủ và nhất quán.</li>
+          <li>Nâng cấp NLP encoder (LLM y khoa) — tùy chọn, tăng lực đóng góp đã có.</li>
+          <li>Viết: đặt generalization + baseline-đơn-giản làm câu chuyện chính, các negative làm ablation.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot">Tài liệu chi tiết trong <code>document/2026-07-21_*</code> và <code>document/2026-07-22_*</code> ·
+  mã trong <code>experiments/</code> · số liệu thô trong <code>experiments/results/*.json</code></p>
+
+</div>

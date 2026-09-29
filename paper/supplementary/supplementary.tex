@@ -1,0 +1,305 @@
+%% supplementary/supplementary.tex — Steps D1, D2, H3
+\documentclass[12pt]{article}
+\usepackage{amsmath,amssymb,booktabs,graphicx,subcaption,float,hyperref}
+\usepackage[margin=2.5cm]{geometry}
+
+\renewcommand{\thefigure}{S\arabic{figure}}
+\renewcommand{\thetable}{S\arabic{table}}
+\renewcommand{\thesection}{S\arabic{section}}
+\setcounter{figure}{0}
+\setcounter{table}{0}
+
+\title{Supplementary Material:\\
+NLP-Augmented Multimodal Attention Fusion for Immunotherapy Response
+Prediction in Non-Small Cell Lung Cancer}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Supplementary Methods}
+
+\subsection*{Supplementary Note S1: NLP Prompt Template}
+\label{supp:note1}
+
+Each patient's 13 clinical variables were converted into a short English
+patient description of ten sentences using the following template
+(placeholders shown in \texttt{[brackets]}):
+
+\begin{quote}
+\small
+\raggedright
+\textit{``The patient is a [AGE]-year-old. Smoking history in pack-years is
+[PACK-YEARS]. ECOG performance status is [ECOG]. Blood albumin concentration
+is [ALBUMIN]. Derived neutrophil-to-lymphocyte ratio (dNLR) is [DNLR].
+Initial tumor burden stands at [TUMOR-BURDEN]. The patient is diagnosed with
+[HISTOLOGY] at the [PRIMARY-SITE] site. Metastatic status: [BRAIN-METS] brain
+metastasis and [LIVER-METS] liver metastasis. Currently undergoing therapy
+line [THERAPY-LINE], utilizing [THERAPY-TYPE]. The patient [PRIOR-PD-L1]
+prior PD-L1 immunotherapy.''}
+\end{quote}
+
+The 13 variables are age, smoking pack-years, ECOG performance status,
+albumin, dNLR, tumor burden, histology, primary site, brain metastasis,
+liver metastasis, therapy line, combination therapy and prior PD-L1 therapy.
+Binary variables were expanded into descriptive phrases rather than coded
+values: [HISTOLOGY] $\in$ \{adenocarcinoma, non-adenocarcinoma\};
+[PRIMARY-SITE] $\in$ \{lung, extra-pulmonary\}; [BRAIN-METS] and
+[LIVER-METS] $\in$ \{with, without\}; [THERAPY-TYPE] $\in$
+\{combination therapy, monotherapy\}; [PRIOR-PD-L1] $\in$
+\{received, did not receive\}.
+Age and therapy line were inserted as integers; albumin, dNLR and tumor
+burden with two decimal places; pack-years and ECOG as stored in the
+source table. Missing values were set to zero before sentence construction
+(for binary variables, zero maps to the negative phrase).
+
+A complete example generated for one discovery-cohort patient:
+
+\begin{quote}
+\small
+\raggedright
+\textit{``The patient is a 69-year-old. Smoking history in pack-years is 48.0.
+ECOG performance status is 1.0. Blood albumin concentration is 4.00. Derived
+neutrophil-to-lymphocyte ratio (dNLR) is 2.40. Initial tumor burden stands
+at 52.00. The patient is diagnosed with adenocarcinoma at the lung site.
+Metastatic status: without brain metastasis and without liver metastasis.
+Currently undergoing therapy line 2, utilizing combination therapy. The
+patient received prior PD-L1 immunotherapy.''}
+\end{quote}
+
+Across the discovery cohort, sentences contained 65--68 words and 129--135
+tokens under the all-MiniLM-L6-v2 tokenizer (including special tokens),
+below the encoder's 256-token input limit, so no sentence was truncated.
+
+\subsection*{Supplementary Note S2: Domain-Specific Encoder (BioClinBERT)}
+\label{supp:note2}
+
+We additionally evaluated \texttt{Bio\_ClinicalBERT} \cite{Alsentzer2019}, a
+BERT model pretrained via masked language modelling (MLM) on MIMIC-III
+clinical notes, as an alternative to the general-purpose
+\texttt{all-MiniLM-L6-v2} sentence encoder. Embeddings were obtained by
+attention-masked mean pooling over the final hidden layer (768 dimensions)
+and PCA-reduced to 16 dimensions (BioClinBERT-PCA16), mirroring NLP-PCA16.
+The input text for this encoder was a shorter prompt variant focused on
+immunotherapy-related risk factors (age, ECOG, albumin, dNLR, therapy line,
+combination therapy, histology, brain and liver metastasis, followed by a
+list of adverse risk factors such as hypoalbuminemia or elevated dNLR),
+rather than the template of Supplementary Note~S1.
+
+BioClinBERT-PCA16 was evaluated in the IHC-A arm only, where it reached
+AUC~$=0.767$ [0.701--0.833], below MiniLM-based NLP-PCA16
+(AUC~$=0.784$ [0.719--0.848]; $\Delta\text{AUC} = -0.017$) and on par with
+numeric labs (AUC~$=0.768$).
+Because the two encoders were given different prompt variants, this
+comparison reflects the encoder and the prompt jointly and should not be read
+as a controlled comparison of the encoders alone.
+A plausible contributing factor on the encoder side is the pretraining
+objective: BioClinBERT's MLM objective optimises the prediction of masked
+tokens rather than sentence-level embeddings in which semantically similar
+sentences lie close together, and mean pooling of such token embeddings is
+known to yield anisotropic embedding spaces, whereas all-MiniLM-L6-v2 was
+trained with a contrastive sentence-similarity objective.
+
+\subsection*{Supplementary Note S3: Power Analysis for AUC Comparisons}
+\label{supp:note3}
+
+To contextualise the overlapping DeLong confidence intervals reported for
+$\Delta\text{AUC}$ values of $+0.017$ to $+0.030$, we performed a post-hoc
+power analysis. With $n = 247$ (62 responders / 185 non-responders,
+prevalence $\approx$25\%), the Hanley--McNeil 95\% confidence interval
+half-width for a single AUC near 0.78--0.81 is approximately
+$\pm 0.07$, consistent with the observed half-widths of $\pm 0.060$--$0.069$
+in Tables~5--6 of the main text.
+
+For the difference between two correlated AUCs estimated on the same
+patients, assuming a between-method correlation of $\rho \approx 0.9$
+(both models share all non-clinical modalities),
+$\mathrm{SE}_0(\Delta) = \sqrt{2(1-\rho)}\,\mathrm{SE}(\text{AUC})
+\approx 0.014$--$0.016$ at $n_0 = 247$.
+Since the standard error scales with $1/\sqrt{n}$, the sample size required
+to detect a true difference $\Delta$ with 80\% power ($\alpha = 0.05$,
+two-sided; $z_{\alpha/2} = 1.96$, $z_{\beta} = 0.84$) is
+\[
+n \;\geq\; n_0 \left(\frac{(z_{\alpha/2} + z_{\beta})\,
+\mathrm{SE}_0(\Delta)}{\Delta}\right)^{2},
+\]
+which gives $n \approx 950$--$1{,}250$ patients for
+$\Delta\text{AUC} = 0.02$ and $n \approx 420$--$550$ for
+$\Delta\text{AUC} = 0.03$.
+The current discovery cohort ($n = 247$) is therefore underpowered by a
+factor of approximately 2--5$\times$ for the AUC differences observed.
+This calculation concerns the binary-response AUC comparison only and does
+not address the power of the survival analyses.
+
+\section{Supplementary Figures}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.7\textwidth]{figures/figS1_pca_scree.pdf}
+  \caption{PCA scree plot for the 384-dimensional NLP sentence embeddings.
+    The x-axis shows the principal component number (1--50) and the y-axis
+    shows cumulative variance explained (\%). The first 16 components
+    (vertical dashed line, used as ``NLP-PCA16'') jointly explain
+    $\approx$94\% of total variance.}
+  \label{fig:supp_pca_scree}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.7\textwidth]{figures/figS2_tsne_embeddings.pdf}
+  \caption{Two-dimensional t-SNE projection of the 384-dimensional NLP
+    clinical embeddings for all $n = 247$ discovery-cohort patients,
+    coloured by binary outcome (blue: PR/CR, label~$=0$; red: SD/PD,
+    label~$=1$). The substantial overlap between classes is consistent with
+    the embeddings encoding general clinical/prognostic similarity rather
+    than a strong linear separation of binary treatment response, in
+    agreement with the survival-dominant signal described in
+    the Survival Analysis section of the main text.}
+  \label{fig:supp_tsne}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.7\textwidth]{figures/figS3_bootstrap_pvalue.pdf}
+  \caption{Bootstrap distribution of $\Delta\text{AUC}$ (NLP raw $-$ numeric
+    Labs, IHC-G arm) across 5{,}000 paired bootstrap resamples of the
+    discovery cohort. The vertical dashed line marks the observed
+    $\Delta\text{AUC} = 0.026$. The proportion of resamples with
+    $\Delta\text{AUC} \leq 0$ provides an empirical bootstrap $p$-value,
+    complementing the DeLong confidence intervals reported in
+    Table~6 of the main text.}
+  \label{fig:supp_bootstrap}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.7\textwidth]{figures/figS4_ovo_scatter.pdf}
+  \caption{Scatter plot comparing AUC under the original cooperative
+    attention (x-axis) versus OvO competitive attention (y-axis) across all
+    20 tested modality configurations. The diagonal line indicates equal
+    performance. Points are coloured by the number of fused modalities
+    (grey: 1 modality, where OvO reduces to the original formulation; blue:
+    2 modalities; red: $\geq$3 modalities). Points above the diagonal
+    indicate configurations where OvO attention improved AUC.}
+  \label{fig:supp_ovo_scatter}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.7\textwidth]{figures/figS5_modality_heatmap.pdf}
+  \caption{Modality availability heatmap for the discovery cohort
+    ($n = 247$ patients $\times$ 8 modalities/sub-modalities: CT radiomics
+    PC/PL/LN, pathology IHC-A, pathology IHC-G, genomics, PD-L1~TPS, and
+    clinical labs). Green indicates the modality is available for a given
+    patient; white indicates missing data, handled via the binary
+    missingness mask described in the Methods section of the main text.}
+  \label{fig:supp_heatmap}
+\end{figure}
+
+\section{Supplementary Tables}
+
+\begin{table}[H]
+\centering
+\caption{Modality availability in the discovery cohort ($n = 247$).
+  Counts are taken from the binary missingness mask actually used by the
+  fusion model (\texttt{modality\_MASK}), so they are the number of patients
+  contributing that modality during training. A patient may contribute
+  lesions at more than one anatomical site; the ``any site'' row is the
+  union used for the CT radiomics entry of Table~1 of the main text.}
+\label{tab:supp_modality}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Modality} & \textbf{Patients available} & \textbf{Coverage (\%)} \\
+\midrule
+CT radiomics (PC lesion)   & 163 & 66.0  \\
+CT radiomics (PL lesion)   & 21  & 8.5   \\
+CT radiomics (LN lesion)   & 67  & 27.1  \\
+CT radiomics (any site)    & 187 & 75.7  \\
+Pathology IHC-A            & 105 & 42.5  \\
+Pathology IHC-G (GLCM)     & 105 & 42.5  \\
+Genomics (FoundationOne CDx) & 247 & 100.0 \\
+PD-L1~TPS                  & 201 & 81.4  \\
+Clinical labs (13 variables) & 247 & 100.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Feature counts per modality before and after feature selection.
+  Only the CT radiomics modalities pass through the ICC-based robustness
+  filter (ICC~$>0.15$), outlier filter (z-score~$<6$) and elastic-net L1
+  selection described in the Methods section of the main text; all other
+  modalities enter the model at full dimensionality.
+  Because the selection is refitted inside every training fold (the held-out
+  fold is excluded before fitting, to avoid selection leakage), the number
+  of retained radiomics features varies by fold and is reported as the
+  median across the 10 folds with the observed range in brackets.}
+\label{tab:supp_features}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Modality} & \textbf{Raw features} & \textbf{After selection} &
+\textbf{Retention (\%)} \\
+\midrule
+CT radiomics (PC lesion)       & 1688 & 35 [28--45] & 2.1 \\
+CT radiomics (PL lesion)       & 1688 & 9 [3--20]   & 0.5 \\
+CT radiomics (LN lesion)       & 1688 & 25 [17--32] & 1.5 \\
+Pathology IHC-A                & 18   & 18           & 100.0 \\
+Pathology IHC-G (GLCM)         & 150  & 150          & 100.0 \\
+Genomics                       & 11   & 11           & 100.0 \\
+PD-L1~TPS                      & 1    & 1            & 100.0 \\
+Clinical labs                  & 13   & 13           & 100.0 \\
+NLP raw (MiniLM-L6-v2)         & 384  & 384 (no\_scale) & 100.0 \\
+NLP-PCA16                      & 16   & 16 (no\_scale)  & 100.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\begin{table}[H]
+\centering
+\footnotesize
+\caption{Single-partition (single 10-fold split, natural patient order, the
+  protocol used in the exploratory screen of the main text) AUC across the
+  same 21 configurations and three model variants as Table~4 of the main
+  text, which reports the corresponding repeated-seed values. As discussed
+  in the OvO Attention section of the main text, single-partition values are
+  more favourable to whichever model happens to fit the specific fold
+  assignment and should not be interpreted as evidence of a reproducible
+  advantage; they are reported here only for comparability with prior
+  single-partition analyses.}
+\label{tab:supp_ovo_nlp_1run}
+\begin{tabular}{@{}clccc@{}}
+\toprule
+\# & Configuration & DyAM & OvO & OvO+NLP \\
+\midrule
+1  & TMB                            & 0.615 & 0.615 & 0.610 \\
+2  & PDL1                           & 0.708 & 0.708 & 0.678 \\
+3  & IHC-A                          & 0.606 & 0.606 & 0.660 \\
+4  & Gen                            & 0.676 & 0.676 & 0.655 \\
+5  & Rad                            & 0.693 & 0.679 & 0.706 \\
+6  & Rad-LU                         & 0.678 & 0.671 & 0.691 \\
+7  & TMB+PDL1                       & 0.636 & 0.699 & 0.698 \\
+8  & PDL1+Gen (BM4)                 & 0.693 & 0.716 & 0.737 \\
+9  & Rad+IHC-A                      & 0.688 & 0.681 & 0.746 \\
+10 & Rad+IHC-G                      & 0.710 & 0.700 & 0.775 \\
+11 & Rad+Gen (BM3)                  & 0.755 & 0.751 & 0.755 \\
+12 & IHC-A+Gen                      & 0.715 & 0.716 & 0.723 \\
+13 & IHC-G+Gen                      & 0.756 & 0.723 & 0.756 \\
+14 & Rad+IHC-A+Gen                  & 0.772 & 0.736 & 0.801 \\
+15 & Rad+IHC-G+Gen                  & 0.783 & 0.769 & 0.803 \\
+16 & Rad+IHC-A+MutAmp               & 0.782 & 0.767 & 0.768 \\
+17 & Rad+IHC-A+Gen+PDL1             & 0.796 & 0.767 & 0.798 \\
+18 & Rad+IHC-G+Gen+PDL1 (BM1)       & 0.798 & 0.797 & 0.812 \\
+19 & Rad+IHC-A+Gen+TMB+PDL1         & 0.789 & 0.791 & 0.813 \\
+20 & Rad+IHC-A+Gen+PDL1+Labs        & 0.765 & 0.762 & 0.798 \\
+21 & Rad+IHC-G+Gen+PDL1+Labs (BM2)  & 0.791 & 0.778 & 0.812 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\bibliographystyle{plain}
+\bibliography{../references}
+
+\end{document}

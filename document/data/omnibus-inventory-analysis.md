@@ -19,6 +19,33 @@
 
 ---
 
+## 1.1 Liên kết với `final_cohort_listing.csv` (3 tập discovery / rad_valid / path_valid)
+
+`final_cohort_listing.csv` (368 dòng: `discovery`=247, `rad_valid`=50, `path_valid`=71) là **nguồn xác định cohort**.
+Cột `main_index` của file này **không dùng cùng một định danh** cho cả 3 cohort — phải join với omnibus
+bằng cột ID khác nhau tùy theo cohort:
+
+| Cohort | Cột `main_index` trong `final_cohort_listing.csv` tương ứng với cột nào trong omnibus |
+|---|---|
+| `discovery` (n=247) | `dmp_pt_id` (ví dụ `P-0013653`) |
+| `rad_valid` (n=50)  | `radiology_accession_number` hoặc `did_acc` (ví dụ `190868`) |
+| `path_valid` (n=71) | `pdl1_image_id` hoặc `slide_id` (ví dụ `3369788`) |
+
+Join theo cách này cho kết quả khớp chính xác 247/50/71 dòng cho từng cohort, không trùng lặp giữa
+`discovery` và 2 cohort validation (chỉ có 2 dòng omnibus vừa thuộc `rad_valid` vừa thuộc `path_valid`).
+
+**Lưu ý quan trọng:** nếu chỉ join bằng `dmp_pt_id` (như `get_clinical_table_v2()` mặc định làm), sẽ
+**chỉ** lấy được dữ liệu của cohort `discovery` — 2 cohort validation sẽ ra toàn `NaN`/0 overlap, **không
+phải vì thiếu dữ liệu** mà vì sai cột join. Khi cần lâm sàng/outcome cho `rad_valid`/`path_valid`
+(ví dụ Table 1 — patient characteristics), phải join theo `radiology_accession_number`/`did_acc` và
+`pdl1_image_id`/`slide_id` như trên.
+
+Ví dụ với `rad_valid`/`path_valid`, các cột `recieves_pd1_therapy`/`recieves_pdl1_therapy`/`recieves_combo_therapy`
+đều là `NaN` toàn bộ — đây là dữ liệu thực sự không được ghi nhận trong registry cho 2 cohort này (không
+phải lỗi join).
+
+---
+
 ## 2. Nhãn mục tiêu (`label`)
 
 | Nhãn | Ý nghĩa | Số bệnh nhân | Tỷ lệ |
@@ -136,7 +163,18 @@ Tổng 259 bệnh nhân có thông tin về loại thuốc (thiếu 119 – 32.5
 | Đáp ứng (`label=0`) | 93 | 16.3 | 14.8 | 3.5–59.7 |
 | Không đáp ứng (`label=1`) | 273 | 3.4 | 1.9 | 0.1–23.5 |
 
-- `pfs_censor`: 1 = bị censored (308 ca), 0 = event xảy ra (58 ca).
+- `pfs_censor`: **1 = CÓ biến cố (event observed)** — 308 ca trên 366 dòng;
+  0 = bị censored (58 ca).
+
+> ⚠️ **Đính chính (2026-09-16).** Dòng này trước đây ghi ngược
+> ("1 = bị censored"). Quy ước đúng là **1 = có biến cố**, vì:
+> (a) code truyền thẳng cột này vào `event_observed=` của lifelines
+> (`lung_helpers.py:2272–2320`), tức coi 1 = event;
+> (b) nếu 1 = censored thì cả 3 cohort sẽ có 78–92% bị mất theo dõi trước
+> ~3 tháng trong khi median PFS chỉ 2.6–2.7 tháng — bất hợp lý về lâm sàng,
+> và phân tích Cox (HR 4.7–6.1, p<0.001) lẫn KM (χ²≈28) không thể đạt được
+> với chỉ 38/247 biến cố.
+> Table 1 của bài báo (209/247 = 84.6% có biến cố) theo đúng quy ước này.
 
 ### 5.2 Thời gian sống toàn bộ (`os_int`, tháng)
 

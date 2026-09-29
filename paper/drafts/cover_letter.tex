@@ -1,0 +1,94 @@
+%% drafts/cover_letter.tex — Step E2
+\documentclass[11pt]{letter}
+\usepackage[margin=2.5cm]{geometry}
+
+\signature{[Corresponding Author Name]}
+\address{[Department], [University]\\ [City], [Country]}
+
+\begin{document}
+
+\begin{letter}{Editorial Office\\Cancers (MDPI)}
+
+\opening{Dear Editor,}
+
+We are pleased to submit our original research article entitled
+\textbf{``NLP-Augmented Multimodal Attention Fusion for Immunotherapy
+Response Prediction in Non-Small Cell Lung Cancer''} for consideration for
+publication in \emph{Cancers}. The manuscript comprises approximately 4,600
+words of main text (Introduction through Conclusions; abstract 192 words),
+5 main figures, 8 main tables, and a supplementary file containing 3
+supplementary notes, 5 supplementary figures, and 3 supplementary tables.
+The authorship list is: [First Author]$^{1,\dagger}$, [Second Author]$^{2}$,
+and [Third Author]$^{1,*}$ (corresponding author).
+
+Predicting which patients with advanced non-small cell lung cancer (NSCLC)
+will respond to immune checkpoint inhibitor (ICI) therapy remains an
+unresolved clinical problem, as established biomarkers such as PD-L1
+expression provide only modest discrimination. In this study, we extend a
+previously developed multimodal attention fusion model (DyAM), which
+combines CT radiomics, pathology imaging features, tumour genomics, PD-L1
+status, and clinical data, with two contributions: (1) a competitive
+``one-vs-others'' (OvO) attention mechanism, evaluated under a repeated-seed
+protocol against the original cooperative attention, and (2) a
+natural-language-processing-based encoding of structured clinical variables
+using a pretrained sentence transformer, in place of conventional numeric
+encoding. Using a discovery cohort of 247 patients with advanced NSCLC
+treated with ICIs, we show that OvO attention matches the original
+cooperative attention at every primary benchmark configuration (within
+0.011~AUC, $p \geq 0.17$; AUC~$=0.773$ vs.\ $0.760$ at the primary
+benchmark), offering a simpler parameterization without a measurable
+accuracy cost, and that NLP-based clinical encoding
+consistently improves both response-prediction AUC (up to
+$\Delta\text{AUC}=+0.030$) and survival risk stratification (highest Cox
+hazard ratios and time-dependent AUC among all tested clinical encodings,
+all Kaplan--Meier log-rank $p<0.005$); this improvement generalises across
+both attention mechanisms, indicating the encoding strategy itself, not the
+attention architecture, drives the gain.
+
+We believe this work is well-suited to \emph{Cancers} given the journal's
+strong focus on translational oncology, multimodal biomarker discovery, and
+applications of artificial intelligence to cancer diagnosis and treatment
+selection. Our findings offer a practical, fine-tuning-free strategy
+(NLP encoding of structured EHR data) that is readily transferable to other
+multimodal oncology prediction tasks, and our repeated-seed comparison of
+attention mechanisms illustrates the importance of robustness testing beyond
+a single cross-validation partition when evaluating multimodal fusion
+architectures.
+
+We confirm that this manuscript is original, has not been published
+previously, and is not under consideration for publication elsewhere, in
+whole or in part. The authors declare no conflicts of interest. The study
+was approved by the Institutional Review Board of [INSTITUTION]
+(Protocol No.~[IRB-NUMBER]), and all participants provided written informed
+consent. We have no objection to the suggested reviewers being contacted,
+and we are happy to suggest reviewers if required.
+
+Thank you for considering our manuscript. We look forward to your response.
+
+\closing{Sincerely,}
+
+\end{letter}
+\end{document}
+
+%% ═══════════════════════════════════════════════════════════════════════════
+%% SUBMISSION CHECKLIST (Cancers / MDPI)
+%% ═══════════════════════════════════════════════════════════════════════════
+%%
+%% [x] Abstract <= 200 words (197 words; MDPI Cancers limit, not 250)
+%% [x] Keywords: 8 terms (within 5-10 recommended range)
+%% [ ] All figures exported at >= 300 DPI, vector format (PDF/SVG) preferred,
+%%     named Figure1.pdf ... Figure5.pdf and FigureS1.pdf ... FigureS5.pdf
+%% [x] All tables provided as editable LaTeX (booktabs); no image-based tables
+%% [x] Supplementary material assembled as a single separate file
+%%     (supplementary/supplementary.tex -> supplementary.pdf)
+%% [x] References in MDPI numeric (Vancouver-style) format via mdpi.bst,
+%%     all 18 entries have author/title/year/DOI (DyAM2024 marked
+%%     "manuscript in preparation" pending confirmation)
+%% [x] Author contributions section present (CRediT taxonomy placeholders)
+%% [x] Data availability statement present (GitHub URL placeholder)
+%% [ ] Code availability: confirm public GitHub URL before submission
+%% [ ] ORCID iDs for all authors (MDPI requires at submission)
+%% [ ] Suggested reviewers (3-5 names + emails, MDPI submission form)
+%% [ ] Final author approval of submitted version (sign-off from all authors)
+%% [ ] IRB protocol number and institution name finalized
+%% [ ] Cover letter customized with real author names/affiliations

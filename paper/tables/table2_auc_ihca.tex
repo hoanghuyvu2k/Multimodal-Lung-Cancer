@@ -1,0 +1,28 @@
+%% tables/table2_auc_ihca.tex
+\begin{table}[H]
+\caption{AUC comparison across clinical encoding strategies --- IHC-A arm.
+  All models use the DyAM architecture with CT radiomics (PC, PL, LN),
+  pathology IHC-A, genomics, and PD-L1~TPS as base modalities;
+  clinical encoding is the varied factor.
+  AUC computed on pooled out-of-fold predictions from 10-fold
+  cross-validation ($n = 247$).
+  95\%~CI by DeLong structural components method.
+  $\Delta$AUC relative to the no-clinical baseline.
+  $^\dagger$Best-performing NLP variant; n/a, not applicable.
+  NLP, natural language processing; PCA, principal component analysis.}
+\label{tab:auc_ihca}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Model} & \textbf{AUC} & \textbf{95\%~CI} & \boldmath{$\Delta$}\textbf{AUC} \\
+\midrule
+No clinical (baseline)        & 0.764 & [0.695--0.833] & (ref) \\
++ Labs (13-dim numeric)       & 0.768 & [0.700--0.837] & $+0.004$ \\
++ NLP raw (384-dim)           & 0.781 & [0.717--0.845] & $+0.017$ \\
+\textbf{+ NLP-PCA16 (16-dim)}\textsuperscript{$\dagger$}
+                              & \textbf{0.784} & \textbf{[0.719--0.848]} & $\mathbf{+0.020}$ \\
++ Labs + NLP (combined)       & 0.767 & [0.700--0.835] & $+0.003$ \\
++ Labs + NLP-PCA16 (combined) & 0.753 & [0.682--0.823] & $-0.011$ \\
++ BioClinBERT-PCA16           & 0.767 & [0.701--0.833] & $+0.003$ \\
+\bottomrule
+\end{tabular}
+\end{table}

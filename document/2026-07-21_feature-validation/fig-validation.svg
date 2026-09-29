@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="300" viewBox="0 0 760 300" font-family="system-ui,-apple-system,Segoe UI,sans-serif">
+<rect width="760" height="300" fill="#fcfcfb"/>
+<text x="24" y="34" font-size="19" font-weight="700" fill="#0b0b0b">Hướng A — Discovery-CV vs Kiểm chứng ngoài mẫu</text>
+<text x="24" y="56" font-size="12.5" fill="#52514e">● discovery-CV (uniform_avg)  <tspan fill="#2a78d6">◆ external neural</tspan>  <tspan fill="#e34948">◆ external LR</tspan> (± 95% CI). Vạch 0.5 = ngẫu nhiên.</text>
+<line x1="280.8" y1="82" x2="280.8" y2="260" stroke="#e1e0d9" stroke-width="1"/>
+<text x="280.8" y="278" font-size="10.5" fill="#898781" text-anchor="middle">0.4</text>
+<line x1="351.5" y1="82" x2="351.5" y2="260" stroke="#c3c2b7" stroke-width="1.5"/>
+<text x="351.5" y="278" font-size="10.5" fill="#898781" text-anchor="middle">0.5</text>
+<line x1="422.3" y1="82" x2="422.3" y2="260" stroke="#e1e0d9" stroke-width="1"/>
+<text x="422.3" y="278" font-size="10.5" fill="#898781" text-anchor="middle">0.6</text>
+<line x1="493.1" y1="82" x2="493.1" y2="260" stroke="#e1e0d9" stroke-width="1"/>
+<text x="493.1" y="278" font-size="10.5" fill="#898781" text-anchor="middle">0.7</text>
+<line x1="563.8" y1="82" x2="563.8" y2="260" stroke="#e1e0d9" stroke-width="1"/>
+<text x="563.8" y="278" font-size="10.5" fill="#898781" text-anchor="middle">0.8</text>
+<line x1="634.6" y1="82" x2="634.6" y2="260" stroke="#e1e0d9" stroke-width="1"/>
+<text x="634.6" y="278" font-size="10.5" fill="#898781" text-anchor="middle">0.9</text>
+<text x="20" y="124" font-size="13" font-weight="700" fill="#0b0b0b">Pathology → path_valid</text>
+<text x="20" y="142" font-size="10.5" fill="#898781">n_test=52</text>
+<circle cx="438.0" cy="120.0" r="5" fill="#52514e"/>
+<text x="438.0" y="108.0" font-size="9.5" fill="#898781" text-anchor="middle">0.62</text>
+<line x1="433.7" y1="104.0" x2="629.2" y2="104.0" stroke="#2a78d6" stroke-width="2" opacity="0.9"/>
+<path d="M540.4 99.0 L545.4 104.0 L540.4 109.0 L535.4 104.0 Z" fill="#2a78d6"/>
+<text x="635.2" y="108.0" font-size="9.5" fill="#898781">0.77</text>
+<line x1="431.0" y1="136.0" x2="631.0" y2="136.0" stroke="#e34948" stroke-width="2" opacity="0.9"/>
+<path d="M539.1 131.0 L544.1 136.0 L539.1 141.0 L534.1 136.0 Z" fill="#e34948"/>
+<text x="637.0" y="140.0" font-size="9.5" fill="#898781">0.77</text>
+<text x="20" y="224" font-size="13" font-weight="700" fill="#0b0b0b">Radiomics → rad_valid</text>
+<text x="20" y="242" font-size="10.5" fill="#898781">n_test=46</text>
+<circle cx="413.1" cy="220.0" r="5" fill="#52514e"/>
+<text x="413.1" y="208.0" font-size="9.5" fill="#898781" text-anchor="middle">0.59</text>
+<line x1="139.7" y1="204.0" x2="455.6" y2="204.0" stroke="#2a78d6" stroke-width="2" opacity="0.9"/>
+<path d="M298.5 199.0 L303.5 204.0 L298.5 209.0 L293.5 204.0 Z" fill="#2a78d6"/>
+<text x="461.6" y="208.0" font-size="9.5" fill="#898781">0.42</text>
+<line x1="161.0" y1="236.0" x2="480.1" y2="236.0" stroke="#e34948" stroke-width="2" opacity="0.9"/>
+<path d="M324.0 231.0 L329.0 236.0 L324.0 241.0 L319.0 236.0 Z" fill="#e34948"/>
+<text x="486.1" y="240.0" font-size="9.5" fill="#898781">0.46</text>
+<text x="20" y="292" font-size="11" fill="#52514e">Pathology giữ mạnh (ext&gt;disc); radiomics sụp dưới 0.5. Neural≈LR ở cả hai.</text>
+</svg>

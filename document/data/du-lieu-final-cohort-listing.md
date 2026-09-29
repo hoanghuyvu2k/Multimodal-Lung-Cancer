@@ -60,16 +60,25 @@ Phân loại cohort của bệnh nhân. Có 3 giá trị:
   df_clinical = get_clinical_table_v2(path=..., main_index_col='dmp_pt_id', cohort=df_cohort_disc)
   ```
 
-**Đặc điểm lâm sàng của cohort discovery** (từ omnibus inventory):
+**Đặc điểm lâm sàng của cohort discovery (n=247)** — tính bằng
+`paper/make_table1.py`, join omnibus theo `dmp_pt_id`:
 
 | Đặc điểm | Phân bố |
 |---|---|
-| Tuổi | 30–93 tuổi, trung bình 66.8 |
-| Giới tính | Nam (sex=1): 168 (45.7%), Nữ (sex=2): 198 (53.8%) |
-| Mô học | Adenocarcinoma: 268 (73%), Squamous: 56 (15.2%), NOS: 26 (7.1%) |
-| ECOG | 0: 46 (12.5%), 1: 289 (78.7%), 2: 29 (7.9%), 3: 2 |
-| Nhãn kết quả | label=1 (không đáp ứng SD/POD): 273 (74.2%), label=0 (đáp ứng PR/CR): 93 (25.3%) |
-| Phác đồ điều trị | Anti-PD-1: 197 (78.8%), Anti-PD-L1: 50 (20%), Combo: 12 |
+| Tuổi | 38–93 tuổi, trung bình 66.9 |
+| Giới tính | Nam (sex=1): 113 (45.7%), Nữ (sex=2): 134 (54.3%) |
+| Mô học | Adenocarcinoma: 184 (74.5%), Squamous: 36 (14.6%), khác/NOS: 27 (10.9%) |
+| ECOG | 0: 28 (11.3%), 1: 194 (78.5%), ≥2: 25 (10.1%) |
+| Nhãn kết quả | label=1 (không đáp ứng SD/POD): 185 (74.9%), label=0 (đáp ứng PR/CR): 62 (25.1%) |
+| Phác đồ điều trị | Anti-PD-1: 197 (79.8%), Anti-PD-L1: 50 (20.2%), Combo: 12 (4.9%) — ba cờ **độc lập**, không loại trừ nhau nên tổng >100% |
+| PFS | 209/247 (84.6%) có biến cố; median 2.7 tháng (0.1–49.1) |
+
+> ⚠️ **Cảnh báo (sửa 2026-09-16).** Bảng trên trước đây ghi số của **toàn bộ
+> 366 dòng file omnibus** (168+198=366, 273+93=366) nhưng lại dán nhãn là
+> "cohort discovery". Sai sót này đã bị chép thẳng vào Table 1 của bài báo và
+> chỉ được phát hiện ngày 2026-09-16 (dòng "Nam 168" là bất khả thi với
+> n=247: 168/247 = 68%). Số của quần thể 366 dòng nằm ở
+> `omnibus-inventory-analysis.md` §3 — **đừng dùng chúng cho cohort discovery**.
 
 ### Cohort `rad_valid` (50 bệnh nhân)
 
