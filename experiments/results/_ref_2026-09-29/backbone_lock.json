@@ -1,0 +1,29 @@
+{
+  "backbone": "uniform_avg",
+  "source": "experiments/baselines/model_uniform_avg.py",
+  "locked_auc": {
+    "BM1": {
+      "mean_auc": 0.7746469049694855,
+      "sd_auc": 0.018593642446832977
+    },
+    "BM2": {
+      "mean_auc": 0.7665213600697471,
+      "sd_auc": 0.010981026325254599
+    },
+    "BM3": {
+      "mean_auc": 0.7110287707061901,
+      "sd_auc": 0.014831910639604855
+    },
+    "BM4": {
+      "mean_auc": 0.7191107236268527,
+      "sd_auc": 0.008426939550372083
+    }
+  },
+  "reproduce_check": {
+    "bm": "BM1",
+    "value": 0.7746469049694855,
+    "ref": 0.7746469049694855,
+    "delta": 0.0,
+    "exact_match": true
+  }
+}

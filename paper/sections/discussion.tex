@@ -8,13 +8,13 @@ NLP-based encoding of tabular clinical features, and evaluated both using
 binary classification and survival endpoints.
 
 The best-performing model, DyAM Rad+IHC-G+Gen+PDL1+NLP~raw, achieved
-AUC~$= 0.813$ [95\%~CI: 0.753--0.874], placing it at the
-``good-to-excellent'' discrimination threshold ($\text{AUC} > 0.80$) commonly
-used in oncology decision support \cite{Vanguri2022}.
+AUC~$= 0.813$ [95\%~CI: 0.753--0.874], placing it in the
+``excellent'' discrimination range ($0.80 \leq \text{AUC} < 0.90$) under commonly
+used interpretation guidelines \cite{Mandrekar2010}.
 For context, this exceeds the single-source models evaluated in the same
 cohort under the DyAM framework --- PD-L1~TPS alone (AUC~$= 0.720$) and TMB
 alone (AUC~$= 0.616$) --- consistent with the modest discrimination reported
-for these markers in the literature \cite{Rizvi2015,Reck2016}.
+for these markers in the literature \cite{Lu2019,Rizvi2015}.
 This confirms that multimodal fusion, augmented with NLP-encoded clinical
 context, approaches the upper range of discrimination achievable with
 currently available biomarkers in this disease setting.

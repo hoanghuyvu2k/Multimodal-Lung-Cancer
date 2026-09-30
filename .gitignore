@@ -5,6 +5,7 @@ vector_figs/
 
 # --- Cache / ket qua trung gian sinh lai duoc ---
 # 704 file .npy embedding CT (~4.8 MB)
+
 experiments/foundation_embed/cache/
 # 174 file CSV diem tung benh nhan (~4.7 MB); ban tom tat nam o experiments/results/*.json
 experiments/results/scores/

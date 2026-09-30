@@ -413,6 +413,112 @@ mới nên dùng để kết luận.
 
 ---
 
+### 2.10. ★ Kiểm chứng lại toàn bộ số liệu bài báo (2026-09-30)
+
+**Mã:** `experiments/verify_all.py` (runner nối 6 phase) · `experiments/nlp_verify/verify_nlp_variants.py` (mới)
+· `experiments/compare_to_paper.py` (mới) · **Kế hoạch & kết quả:** `document/2026-09-29_verify-paper-numbers/`
+**Bản gốc đối chiếu:** `experiments/results/_ref_2026-09-29/` (31 JSON sao lưu trước khi chạy)
+**Config:** đúng chuẩn §0 (125 epoch, lr 0.01, alpha 0.001, beta 0.0, folds=10, seeds `[42,7,123,2024,31337]`),
+Discovery n=247. **Khác biệt môi trường so với các lần chạy gốc:** scipy 1.14.1 (gốc <1.14) —
+phải vá `PowerTransformer._yeo_johnson_optimize` (cột lỗi → λ=1), cùng bản vá đã có trong `nlp_run.py`.
+Thời gian: 1a 64,8′ · 1b 13,1′ · 1c 38,2′ · 2 71,6′ · 3 6,4′ · 4 5,0′ (tổng ~3h20, CPU).
+
+| Nhóm số | Kết quả |
+|---|---|
+| Bảng 1, Note S1 (câu/token), PCA 94,4% | ✅ khớp tuyệt đối |
+| Bảng 4 — 13/21 tổ hợp không radiomics | ✅ khớp tới 4 chữ số |
+| Bảng 4 — **cột OvO+NLP cả 21 tổ hợp** | ✅ **khớp tuyệt đối** (đường chạy này vốn đã có bản vá scipy) |
+| Bảng 4 — 23/63 ô còn lại (đều có radiomics) | ⚠️ lệch ≤ 0,016, hai chiều — do scipy |
+| Note S3 (SE(Δ), cỡ mẫu) | ⚠️ sai số học: SE(Δ) thực 0,0158–0,0166; n cần 1.211–1.343 (Δ=0,02) |
+| **Bảng 5, 6** (AUC theo mã hoá lâm sàng) | ❌ **không tái lập**: IHC-A No clin 0,778 vs 0,764; +NLP-PCA16 0,770 vs 0,784 → hiệu ứng NLP **đảo chiều** (−0,008 thay vì +0,020) |
+| **Bảng 7** (C-index, Cox HR) | ❌ **không tái lập**: C-index No clin 0,636 (bài 0,623), +NLP-PCA16 0,621 (bài 0,628); HR 5,84 vs 5,30 và 4,72 vs 6,07 — đảo chiều |
+| **Bảng 8** (KM log-rank χ²) | ❌ **không tái lập** với cả 3 cách chia nhóm (median/mean/ngưỡng AUC); IHC-G +NLP-PCA16 16,43 thay vì 28,92 |
+| Bảng 7 — tdAUC, IBS | ⛔ không kiểm được: sksurv 0.27 gọi `numpy.trapezoid` (cần numpy ≥ 2, đang 1.26.4) |
+| Cox p<0,001 mọi model · Wilcoxon per-fold không ý nghĩa · KM p<0,005 | ✅ khớp |
+
+- **Phát hiện provenance:** Bảng 5/6 KHÔNG do notebook `Figures-Finalized.ipynb` sinh ra (quét cả 66 cell:
+  không cell nào gọi `clinical_nlp_embedding`/`MiniLM`/`sentence-transformers`). §2.0b ở trên ghi nguồn sai.
+  Nguồn duy nhất còn lại là `document/nlp-model/nlp-ket-qua.md`.
+- **Hai script độc lập** (`verify_nlp_variants.py` mới và `survival_analysis_nlp.py` cũ) cho cùng bộ số mới,
+  lệch nhau <0,001 → không phải lỗi script.
+- Bảng 5–8 đều là **đơn-phân-hoạch**; lệch 0,01–0,02 đúng bằng SE(Δ)≈0,016 mà Note S3 tính ra.
+- **VERDICT: GIỮ bằng chứng 5-seed** (Bảng 4, §2.8, §2.9 — tái lập 100%). **Bảng 5–8 cần chạy lại bằng
+  5-seed** thì mới đứng được; danh sách sai khác + phương án chờ quyết định ở
+  `document/2026-09-29_verify-paper-numbers/sai-khac-can-quyet-dinh.md`. Bài báo giữ nguyên trạng, chưa sửa.
+
+### 2.11. Đo GPU vs CPU (2026-09-30, không phải thí nghiệm mô hình)
+
+Cài `torch 2.13.0+cu126` (index cu124 chỉ có tới 2.6.0 nên không dùng được), RTX 3060 12GB, driver 560.94.
+Đo cùng cấu hình (4 modality, 10-fold, 125 epoch), 3 lần liên tiếp trong một tiến trình:
+
+| Thiết bị | Thời gian | AUC (fold-mean) |
+|---|---|---|
+| CPU (torch 2.13.0+cpu) | **15,4 s** | 0,539 |
+| GPU (torch 2.13.0+cu126) | 20,0 / 18,0 / 17,9 s | 0,547 |
+
+**Thí nghiệm tách nguyên nhân** (cùng torch 2.13.0+cu126, cùng seed, chỉ đổi thiết bị bằng cách ép
+`torch.cuda.is_available = lambda: False`):
+
+| Thiết bị | Thời gian | AUC pooled |
+|---|---|---|
+| CPU (ép) | 13,8 / 14,6 s | **0,5390** |
+| GPU | 17,9 / 18,7 / 20,0 s | **0,5473** |
+
+→ Khác biệt đến từ **thiết bị**, không phải phiên bản/bản build torch. Đã loại trừ TF32
+(`matmul.allow_tf32=False`, `float32_matmul_precision='highest'` vẫn cho 0,5473). Nguyên nhân là
+kernel và thứ tự cộng dồn của cuBLAS khác CPU BLAS; sai số ~1e-7 mỗi phép được khuếch đại qua
+125 epoch × 10 fold nên quỹ đạo huấn luyện tách ra. Mỗi thiết bị **tự nó tất định** (chạy lại ra
+đúng cùng số).
+
+- GPU **chậm hơn ~17%** — mô hình quá nhỏ (batch 247, vài lớp linear), chi phí phóng kernel lấn át; phần
+  RobustScaler/PowerTransformer/chọn đặc trưng L1 vẫn chạy CPU.
+- GPU cho AUC lệch **+0,008** trên cùng cấu hình tất định → mọi số chạy trên GPU không so trực tiếp được
+  với các mục trên.
+- **VERDICT: nên quay lại bản CPU** cho dự án này. Nếu vẫn dùng GPU, phải ghi rõ "chạy GPU" trong mọi mục
+  kết quả sau đó.
+
+### 2.12. ★ Bảng 5–8 chạy lại bằng 5-seed (2026-09-30) — SK-3/4/5
+
+**Mã:** `experiments/nlp_verify/verify_nlp_5seed.py` (mới) · **Kết quả:** `results/verify_nlp_5seed.json`
+**Config:** chuẩn §0 (125 epoch, lr 0.01, alpha 0.001, beta 0.0, folds=10, seeds `[42,7,123,2024,31337]`),
+model DyAM (`train`), rad filter `l1_strength=0.1` PC/PL/LN, vá scipy như §2.10, CPU. 11 biến thể
+(IHC-A 7, IHC-G 4) × 5 seed = 55 lượt train, ~35 phút. Thay cho số ĐƠN-PHÂN-HOẠCH của Bảng 5–8.
+
+| Nhánh | Biến thể | AUC 5-seed | (bài) | C-index | Cox HR | KM χ² |
+|---|---|---|---|---|---|---|
+| IHC-A | No clinical | **0.7490±0.020** | 0.764 | 0.611±0.005 | 4.31±0.62 | 13.4±3.2 |
+| IHC-A | + Labs | 0.7300±0.024 | 0.768 | 0.616±0.007 | 4.85±0.27 | 16.9±6.3 |
+| IHC-A | + NLP raw | 0.7428±0.019 | 0.781 | 0.608±0.008 | **4.97±0.22** | **19.3±7.0** |
+| IHC-A | + NLP-PCA16 | 0.7389±0.017 | 0.784 | 0.608±0.010 | 4.83±0.33 | 19.2±8.7 |
+| IHC-A | + Labs+NLP | 0.7387±0.010 | 0.767 | 0.610±0.006 | 4.72±0.47 | 15.2±6.0 |
+| IHC-A | + Labs+NLP-PCA16 | 0.7381±0.009 | 0.753 | 0.609±0.008 | 4.61±0.48 | 14.6±6.0 |
+| IHC-A | + BioClinBERT-PCA16 | 0.7265±0.016 | 0.767 | 0.612±0.010 | 5.19±0.70 | 18.0±6.1 |
+| IHC-G | No clinical | 0.7679±0.026 | 0.784 | 0.618±0.007 | 4.16±0.50 | 12.4±3.3 |
+| IHC-G | + Labs | 0.7490±0.021 | 0.788 | **0.626±0.011** | 4.77±0.85 | 19.1±7.8 |
+| IHC-G | **+ NLP raw** | **0.7688±0.026** | 0.813 | 0.619±0.014 | **4.92±0.50** | 18.2±9.4 |
+| IHC-G | + NLP-PCA16 | 0.7666±0.027 | 0.812 | 0.619±0.012 | 4.91±0.46 | 17.5±7.3 |
+
+**Paired bootstrap vs No clinical (2000 lần):** IHC-A +Labs −0.019 p=0.108 · +NLP raw −0.006 p=0.272 ·
++NLP-PCA16 −0.010 p=0.134 · **+BioClinBERT-PCA16 −0.023 p=0.028 (có ý nghĩa)**;
+IHC-G +Labs −0.019 p=0.209 · +NLP raw +0.001 p=0.882 · +NLP-PCA16 −0.001 p=0.926.
+
+- **① "NLP > Labs thô": GIỮ.** IHC-A 0.7428 vs 0.7300 (+0.013); IHC-G 0.7688 vs 0.7490 (+0.020).
+  Nhất quán với §2.8 (19/21 tổ hợp) và cột OvO+NLP §2.9 (tái lập 21/21).
+- **② "NLP cải thiện phân tầng sống còn": KHÔNG ỔN ĐỊNH — XOÁ hoặc nói rất dè dặt.** Chiều lật giữa
+  hai lần chạy: đơn-phân-hoạch HR 5.84→4.60 (NLP kém hơn), 5-seed HR 4.31→4.97 (NLP tốt hơn).
+  Ngoài ra Cox HR ở đây KHÔNG so được giữa model: `compute_multivariate_cox` min-max scale điểm về
+  [0,1] nên HR phụ thuộc biên độ điểm; đổi sang z-score thì HR co về 1.43–1.54 và thứ tự đảo
+  (No clinical 1.540 cao nhất). C-index (không phụ thuộc thang đo) cho No clinical cao nhất ở cả hai
+  lần chạy. Chỉ giữ được: mọi model phân tầng có ý nghĩa p<0.005; khác biệt C-index không có ý nghĩa.
+- **③ "NLP > không-dùng-lâm-sàng" (cột ΔAUC của Bảng 5/6): XOÁ.** Bài ghi +0.020/+0.030; 5-seed cho
+  −0.010/+0.001, p=0.13/0.93. Ở cấu hình này **mọi** cách thêm lâm sàng đều không cải thiện
+  (Labs thô −0.019 ở cả hai nhánh).
+- Mới: **BioClinBERT kém hơn mốc No clinical có ý nghĩa thống kê** (p=0.028) — mạnh hơn cách Note S2
+  đang diễn đạt.
+- **VERDICT:** dùng bộ 5-seed này thay số đơn-phân-hoạch của Bảng 5–8; đổi trục so sánh của §3.3 sang
+  "NLP vs Labs". Đề xuất chi tiết ở `document/2026-09-29_verify-paper-numbers/sai-khac-can-quyet-dinh.md`
+  (SK-3/4/5). Bài báo vẫn giữ nguyên trạng, chờ quyết định.
+
 ## 3. Bảng tổng hợp số liệu chốt cho paper (Master Numbers)
 
 Nguồn: `paper/drafts/master_numbers.md` (nguồn duy nhất cho số liệu paper).

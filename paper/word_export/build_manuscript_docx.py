@@ -484,7 +484,7 @@ P(
     "treatment for advanced NSCLC, producing durable responses in a subset "
     "of patients [2,3]. However, only 20–30% of unselected patients achieve "
     "an objective response, and a substantial proportion experience primary "
-    "or acquired resistance [4]. Reliable pre-treatment identification of "
+    "or acquired resistance [3,4]. Reliable pre-treatment identification of "
     "likely responders remains an unresolved clinical need, as it would "
     "allow clinicians to prioritise ICI therapy for patients most likely to "
     "benefit and to consider alternative or combination strategies for "
@@ -496,16 +496,16 @@ P(
     "are the most widely used biomarkers for ICI response prediction, but "
     "both have well-documented limitations: PD-L1 expression is spatially "
     "heterogeneous and assay-dependent, while TMB alone provides only "
-    "modest discriminative performance [5,4]. This has motivated growing "
+    "modest discriminative performance [5–8]. This has motivated growing "
     "interest in multimodal approaches that integrate radiomics from CT "
     "imaging, pathomics from digitised histology, genomic alterations, and "
-    "clinical variables into a single predictive model [6–9]. Such "
+    "clinical variables into a single predictive model [9–13]. Such "
     "approaches are appealing because they can capture complementary "
     "aspects of tumour biology and host physiology that no single modality "
     "fully represents; however, they introduce new methodological "
     "challenges, including how to weight modalities of differing "
     "reliability and how to handle missing modalities without discarding "
-    "patients [10]. The Dynamic Attention Multimodal (DyAM) framework [11] "
+    "patients [14]. The Dynamic Attention Multimodal (DyAM) framework [15] "
     "addresses these challenges through a learned, per-patient attention "
     "mechanism that adaptively weights each available modality and "
     "naturally accommodates missing data via masking, but its original "
@@ -524,9 +524,9 @@ P(
     "from a relatively small training set. Recent advances in natural "
     "language processing (NLP) have shown that pretrained sentence encoders "
     "can represent complex, multi-attribute entities as dense embeddings "
-    "that preserve semantic similarity [12,13], and domain-specific "
+    "that preserve semantic similarity [16,17], and domain-specific "
     "clinical language models have been developed for free-text clinical "
-    "notes [14]. However, whether converting *structured, tabular* clinical "
+    "notes [18]. However, whether converting *structured, tabular* clinical "
     "variables into natural-language sentences and encoding them with a "
     "general-purpose sentence transformer can improve multimodal fusion "
     "performance — as opposed to encoding free-text clinical narratives "
@@ -581,9 +581,9 @@ H("2. Materials and Methods", level=1)
 
 H("2.1. Study Design and Patient Cohort", level=2)
 P(
-    "This retrospective study used data from the MSK-MIND (Memorial Sloan "
-    "Kettering Molecular-Informed Neoadjuvant/Definitive therapy) programme "
-    "[11], comprising patients with advanced non-small cell lung cancer "
+    "This retrospective study used data from the MSK MIND (Multi-Modal "
+    "Integration of Data) initiative at Memorial Sloan Kettering Cancer "
+    "Center [15], comprising patients with advanced non-small cell lung cancer "
     "(NSCLC) treated with immune checkpoint inhibitor (ICI) therapy between "
     "2017 and 2021. Inclusion criteria were: (i) histologically confirmed "
     "stage IIIB/IV NSCLC, (ii) first- or second-line ICI therapy "
@@ -677,8 +677,8 @@ P(
     "the two pathology feature sets (IHC-A, IHC-G) are used as alternative "
     "arms rather than jointly, a single model receives up to seven input "
     "modalities. CT "
-    "radiomics features were extracted from baseline scans using the "
-    "MIRPON pipeline [7] at 1.0 mm isotropic spacing with a window of "
+    "radiomics features were extracted from baseline scans using "
+    "PyRadiomics [19], following the preprocessing of [15], at 1.0 mm isotropic spacing with a window of "
     "[−1350, 250] HU, yielding 1,688 features per lesion type. Lesions "
     "were categorised by anatomical site: primary tumour (PC), pleural "
     "lesion (PL), and lymph node (LN). Up to three lesions per site were "
@@ -686,10 +686,10 @@ P(
     "PD-L1 immunohistochemistry (IHC) slides: *IHC-A* comprised 18 "
     "pixel-intensity aggregation features (area, mean intensity, "
     "percentiles), while *IHC-G* comprised 150 grey-level co-occurrence "
-    "matrix (GLCM) texture features across six aggregation levels [11]. "
+    "matrix (GLCM) texture features across six aggregation levels [15]. "
     "Genomic features (11 variables) included tumour mutational burden "
     "(TMB) and the status of eight driver mutations and amplifications "
-    "derived from FoundationOne CDx next-generation sequencing (NGS). The "
+    "derived from MSK-IMPACT targeted next-generation sequencing (NGS) [20]. The "
     "PD-L1 tumour proportion score (TPS) was obtained from clinical "
     "pathology reports (range 0–100%). Clinical laboratory features "
     "comprised 13 variables: age, smoking pack-years, Eastern Cooperative "
@@ -716,10 +716,10 @@ P_mix(
 add_table(
     ["Modality", "Source", "Features", "Clinical meaning"],
     [
-        ["CT Radiomics (PC, PL, LN)", "MIRPON pipeline", "≤1,688", "Tumour shape, size, and texture from baseline CT"],
+        ["CT Radiomics (PC, PL, LN)", "PyRadiomics", "≤1,688", "Tumour shape, size, and texture from baseline CT"],
         ["Pathology IHC-A", "PD-L1 IHC slides", "18", "Pixel-intensity aggregation of PD-L1 expression"],
         ["Pathology IHC-G", "PD-L1 IHC slides", "150", "GLCM texture of PD-L1 signal"],
-        ["Genomics", "FoundationOne CDx", "11", "TMB + driver mutation/amplification status"],
+        ["Genomics", "MSK-IMPACT", "11", "TMB + driver mutation/amplification status"],
         ["PD-L1 TPS", "Pathology report", "1", "Tumour proportion score (0–100%)"],
         ["Clinical labs", "EHR", "13", "Demographics, performance status, labs"],
         ["**NLP embedding (new)**", "all-MiniLM-L6-v2", "384", "Sentence embedding of clinical lab text"],
@@ -758,13 +758,13 @@ P(
 )
 P(
     "**Sentence encoder.** Prompts were encoded with "
-    "sentence-transformers/all-MiniLM-L6-v2 [12,13], a 6-layer transformer "
+    "sentence-transformers/all-MiniLM-L6-v2 [16,17], a 6-layer transformer "
     "distilled for semantic sentence similarity and trained on over one "
     "billion sentence pairs. Each patient was represented as a "
     "384-dimensional L2-normalised vector. No fine-tuning was performed; "
     "the model was applied in zero-shot transfer. We compared this "
     "general-purpose encoder against the domain-specific Bio_ClinicalBERT "
-    "[14]; the domain-specific model performed inferiorly (ΔAUC = −0.017 "
+    "[18]; the domain-specific model performed inferiorly (ΔAUC = −0.017 "
     "versus MiniLM-L6-v2 in the IHC-A arm), consistent with its design for "
     "masked language modelling rather than sentence-similarity tasks."
 )
@@ -796,9 +796,9 @@ add_figure(
 H("2.4. Model Architecture", level=2)
 P_mix(
     "**Dynamic Attention Multimodal (DyAM) model.** The base model, DyAM "
-    "[11], fuses ", IM(m.run("N")), " modalities through per-modality "
+    "[15], fuses ", IM(m.run("N")), " modalities through per-modality "
     "risk scores and a learned attention mechanism, in the spirit of "
-    "attention-based architectures broadly [15]. Let ",
+    "attention-based architectures broadly [21]. Let ",
     IM(m.sub("x", "i"), m.run(" ∈ "), m.sup("ℝ", [m.sub("d", "i")])),
     " denote the feature vector of modality ", IM(m.run("i")),
     " after optional RobustScaling. A scalar risk score is computed as:",
@@ -828,7 +828,7 @@ add_equation(
 
 P_mix(
     "**OvO competitive attention.** We propose an alternative attention "
-    "mechanism inspired by one-versus-others (OvO) classification [16], in "
+    "mechanism inspired by one-versus-others (OvO) classification [22], in "
     "which each modality *competes* against the mean score of all "
     "remaining modalities rather than sharing a fixed budget. The mean "
     "score of the ", IM(m.run("N − 1")), " competing modalities is:",
@@ -924,18 +924,18 @@ P(
     "characteristic curve (AUC-ROC) was computed on pooled out-of-fold "
     "predictions from 10-fold cross-validation. Ninety-five percent "
     "confidence intervals (CIs) were estimated using the DeLong structural "
-    "components method [17]. Two models were considered statistically "
+    "components method [23]. Two models were considered statistically "
     "significantly different when their 95% CIs did not overlap, "
     "consistent with standard practice in oncology imaging studies."
 )
 P(
-    "**Survival analysis.** Harrell's concordance index (C-index) [18] was "
+    "**Survival analysis.** Harrell's concordance index (C-index) [24] was "
     "computed from pooled out-of-fold risk scores against PFS. Bootstrap "
     "95% CIs were derived from 1,000 resamples with replacement. For "
     "pairwise comparisons, per-fold C-indices (10 values) were compared "
     "with a two-sided Wilcoxon signed-rank test (α = 0.05). Time-dependent "
     "AUC was computed at 6, 12, and 18 months using the cumulative/dynamic "
-    "estimator [18]. Multivariate Cox proportional hazards regression was "
+    "estimator [25,26]. Multivariate Cox proportional hazards regression was "
     "fitted with the DyAM risk score as the primary predictor, adjusted "
     "for five clinical covariates: age, ECOG performance status, serum "
     "albumin, dNLR, and liver metastasis status. Hazard ratios (HRs) are "
@@ -1191,7 +1191,7 @@ P(
 )
 P(
     "*Domain-specific versus general-purpose encoder.* Bio_ClinicalBERT "
-    "[14], PCA-compressed to 16 dimensions, performed below MiniLM-L6-v2 "
+    "[18], PCA-compressed to 16 dimensions, performed below MiniLM-L6-v2 "
     "in the IHC-A arm (AUC = 0.767 versus 0.784; ΔAUC = −0.017), "
     "consistent with its pretraining objective of masked language "
     "modelling on clinical notes rather than semantic sentence similarity."
@@ -1428,13 +1428,13 @@ P(
 )
 P(
     "The best-performing model, DyAM Rad+IHC-G+Gen+PDL1+NLP raw, achieved "
-    "AUC = 0.813 [95% CI: 0.753–0.874], placing it at the "
-    "“good-to-excellent” discrimination threshold (AUC > 0.80) commonly "
-    "used in oncology decision support [11]. For context, this exceeds "
+    "AUC = 0.813 [95% CI: 0.753–0.874], placing it in the "
+    "“excellent” discrimination range (0.80 ≤ AUC < 0.90) under commonly "
+    "used interpretation guidelines [27]. For context, this exceeds "
     "the single-source models evaluated in the same cohort under the DyAM "
     "framework — PD-L1 TPS alone (AUC = 0.720) and TMB alone "
     "(AUC = 0.616) — consistent with the modest discrimination reported "
-    "for these markers in the literature [4,2]. This "
+    "for these markers in the literature [7,8]. This "
     "confirms that multimodal fusion, augmented with NLP-encoded clinical "
     "context, approaches the upper range of discrimination achievable with "
     "currently available biomarkers in this disease setting."
@@ -1445,7 +1445,7 @@ P(
     "between clinical variables — for example, the combined prognostic "
     "implication of advanced age, low albumin, and poor performance status "
     "— that are not explicitly represented in a 13-dimensional numeric "
-    "vector. The MiniLM-L6-v2 embedding space [12,13] is pretrained to "
+    "vector. The MiniLM-L6-v2 embedding space [16,17] is pretrained to "
     "place semantically similar sentences close together; patients with "
     "similar overall clinical profiles are therefore mapped to nearby "
     "embedding vectors even when no single numeric feature dominates. Raw "
@@ -1636,13 +1636,27 @@ REFERENCES = [
     "Borghaei H, Paz-Ares L, Horn L, et al. Nivolumab versus Docetaxel in "
     "Advanced Nonsquamous Non-Small-Cell Lung Cancer. N Engl J Med. "
     "2015;373:1627–1639. doi:10.1056/NEJMoa1507643",
-    "Rizvi NA, Hellmann MD, Snyder A, et al. Mutational landscape "
-    "determines sensitivity to PD-1 blockade in non-small cell lung "
-    "cancer. Science. 2015;348:124–128. doi:10.1126/science.aaa1348",
+    "Sharma P, Hu-Lieskovan S, Wargo JA, Ribas A. Primary, Adaptive, and "
+    "Acquired Resistance to Cancer Immunotherapy. Cell. 2017;168(4):707–723. "
+    "doi:10.1016/j.cell.2017.01.017",
     "Herbst RS, Baas P, Kim DW, et al. Pembrolizumab versus docetaxel for "
     "previously treated, PD-L1-positive, advanced non-small-cell lung "
     "cancer (KEYNOTE-010). Lancet. 2016;387:1540–1550. "
     "doi:10.1016/S0140-6736(15)01281-7",
+    "Hirsch FR, McElhinny A, Stanforth D, et al. PD-L1 Immunohistochemistry "
+    "Assays for Lung Cancer: Results from Phase 1 of the Blueprint PD-L1 IHC "
+    "Assay Comparison Project. J Thorac Oncol. 2017;12(2):208–222. "
+    "doi:10.1016/j.jtho.2016.11.2228",
+    "Rizvi NA, Hellmann MD, Snyder A, et al. Mutational landscape "
+    "determines sensitivity to PD-1 blockade in non-small cell lung "
+    "cancer. Science. 2015;348:124–128. doi:10.1126/science.aaa1348",
+    "Lu S, Stein JE, Rimm DL, et al. Comparison of Biomarker Modalities for "
+    "Predicting Response to PD-1/PD-L1 Checkpoint Blockade: A Systematic "
+    "Review and Meta-analysis. JAMA Oncol. 2019;5(8):1195–1204. "
+    "doi:10.1001/jamaoncol.2019.1549",
+    "Boehm KM, Khosravi P, Vanguri R, Gao J, Shah SP. Harnessing multimodal "
+    "data integration to advance precision oncology. Nat Rev Cancer. "
+    "2022;22(2):114–126. doi:10.1038/s41568-021-00408-3",
     "Bodalal Z, Trebeschi S, Nguyen-Kim TDL, et al. Radiogenomics: "
     "bridging imaging and genomics. Abdom Radiol. 2019;44:1960–1984. "
     "doi:10.1007/s00261-019-02028-w",
@@ -1665,7 +1679,7 @@ REFERENCES = [
     "Cancer. 2022;3(10):1151–1164. doi:10.1038/s43018-022-00416-8",
     "Reimers N, Gurevych I. Sentence-BERT: Sentence Embeddings using "
     "Siamese BERT-Networks. Proc 2019 Conf Empir Methods Nat Lang Process "
-    "(EMNLP). 2019:3982–3992. doi:10.18653/v1/D19-1410",
+    "and 9th Int Jt Conf Nat Lang Process (EMNLP-IJCNLP). 2019:3982–3992. doi:10.18653/v1/D19-1410",
     "Wang W, Wei F, Dong L, et al. MiniLM: Deep Self-Attention "
     "Distillation for Task-Agnostic Compression of Pre-Trained "
     "Transformers. Adv Neural Inf Process Syst (NeurIPS). "
@@ -1673,10 +1687,18 @@ REFERENCES = [
     "Alsentzer E, Murphy JR, Boag W, et al. Publicly Available Clinical "
     "BERT Embeddings. Proc 2nd Clinical Nat Lang Process Workshop. "
     "2019:72–78. doi:10.18653/v1/W19-1909",
+    "van Griethuysen JJM, Fedorov A, Parmar C, et al. Computational "
+    "Radiomics System to Decode the Radiographic Phenotype. Cancer Res. "
+    "2017;77(21):e104–e107. doi:10.1158/0008-5472.CAN-17-0339",
+    "Cheng DT, Mitchell TN, Zehir A, et al. Memorial Sloan Kettering-"
+    "Integrated Mutation Profiling of Actionable Cancer Targets (MSK-IMPACT): "
+    "A Hybridization Capture-Based Next-Generation Sequencing Clinical Assay "
+    "for Solid Tumor Molecular Oncology. J Mol Diagn. 2015;17(3):251–264. "
+    "doi:10.1016/j.jmoldx.2014.12.006",
     "Vaswani A, Shazeer N, Parmar N, et al. Attention Is All You Need. "
-    "Adv Neural Inf Process Syst (NeurIPS). 2017;30.",
-    "Hastie T, Tibshirani R. Classification by Pairwise Coupling. Ann "
-    "Stat. 1998;26:451–471. doi:10.1214/aos/1028144844",
+    "Adv Neural Inf Process Syst (NeurIPS). 2017;30:5998–6008.",
+    "Rifkin R, Klautau A. In Defense of One-Vs-All Classification. J Mach "
+    "Learn Res. 2004;5:101–141.",
     "DeLong ER, DeLong DM, Clarke-Pearson DL. Comparing the Areas under "
     "Two or More Correlated Receiver Operating Characteristic Curves: A "
     "Nonparametric Approach. Biometrics. 1988;44:837–845. "
@@ -1685,6 +1707,14 @@ REFERENCES = [
     "in Developing Models, Evaluating Assumptions and Adequacy, and "
     "Measuring and Reducing Errors. Stat Med. 1996;15:361–387. "
     "doi:10.1002/(SICI)1097-0258(19960229)15:4<361::AID-SIM168>3.0.CO;2-4",
+    "Uno H, Cai T, Tian L, Wei LJ. Evaluating Prediction Rules for t-Year "
+    "Survivors With Censored Regression Models. J Am Stat Assoc. "
+    "2007;102(478):527–537. doi:10.1198/016214507000000149",
+    "Hung H, Chiang CT. Estimation methods for time-dependent AUC models "
+    "with survival data. Can J Stat. 2010;38(1):8–26. doi:10.1002/cjs.10046",
+    "Mandrekar JN. Receiver Operating Characteristic Curve in Diagnostic "
+    "Test Assessment. J Thorac Oncol. 2010;5(9):1315–1316. "
+    "doi:10.1097/JTO.0b013e3181ec173d",
 ]
 
 for i, ref in enumerate(REFERENCES, 1):

@@ -1,0 +1,89 @@
+{
+  "single": {
+    "fmcib": {
+      "discovery_cv": {
+        "mean": 0.5030276816608996,
+        "sd": 0.008902752872700617
+      },
+      "external": {
+        "auc": 0.5459459459459459,
+        "ci": [
+          0.3321428571428572,
+          0.7632005689900424
+        ],
+        "n": 47
+      }
+    }
+  },
+  "fusion": {
+    "A hand-crafted (BM1)": {
+      "uniform": [
+        0.7746469049694855,
+        0.018593642446832977
+      ],
+      "dyam": [
+        0.7595292066259809,
+        0.022122351726044796
+      ],
+      "modalities": [
+        "rad_lesion_pc",
+        "rad_lesion_pl",
+        "rad_lesion_ln",
+        "path_ihc_glcm",
+        "gen_driver_mut_amp",
+        "cnl_pdl1_score"
+      ]
+    },
+    "B fmcib + Phikon": {
+      "uniform": [
+        0.6533565823888404,
+        0.010345176616698405
+      ],
+      "dyam": [
+        0.6169659982563209,
+        0.015634954717239278
+      ],
+      "modalities": [
+        "rad_fmcib",
+        "path_emb",
+        "gen_driver_mut_amp",
+        "cnl_pdl1_score"
+      ]
+    },
+    "D fmcib rad + path HC": {
+      "uniform": [
+        0.6997210113339146,
+        0.015197591894974893
+      ],
+      "dyam": [
+        0.6831560592850915,
+        0.014039514070193205
+      ],
+      "modalities": [
+        "rad_fmcib",
+        "path_ihc_glcm",
+        "gen_driver_mut_amp",
+        "cnl_pdl1_score"
+      ]
+    },
+    "E BM1 + fmcib (thêm)": {
+      "uniform": [
+        0.7445161290322581,
+        0.027065571412656073
+      ],
+      "dyam": [
+        0.7357977332170881,
+        0.022988278833044096
+      ],
+      "modalities": [
+        "rad_lesion_pc",
+        "rad_lesion_pl",
+        "rad_lesion_ln",
+        "path_ihc_glcm",
+        "gen_driver_mut_amp",
+        "cnl_pdl1_score",
+        "rad_fmcib"
+      ]
+    }
+  }
+}

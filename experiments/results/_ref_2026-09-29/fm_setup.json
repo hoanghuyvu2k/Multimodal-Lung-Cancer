@@ -1,0 +1,28 @@
+{
+  "slide_counts": {
+    "discovery": 163,
+    "path_valid": 71
+  },
+  "n_discovery_patients": 163,
+  "n_pathval_patients": 71,
+  "phikon": {
+    "device": "cuda",
+    "embed_dim": 768,
+    "processor": "ViTImageProcessor"
+  },
+  "slide": {
+    "slide": "1049320",
+    "n_levels": 3,
+    "level0_dims": [
+      47807,
+      13954
+    ],
+    "objective_power": "20",
+    "mpp_x": "0.50109999999999999"
+  },
+  "annotation": {
+    "found": true,
+    "file": "1049320_1985.annotations",
+    "head": "<Annotations>\n  <Annotation LineColor=\"65535\" Name=\"Layer 1\" Visible=\"True\">\n    <Regions>\n      <Region Type=\"Rectangle\" HasEndcaps=\"0\" NegativeROA=\"0\">\n        <Vertices>\n          <V X=\"27597\" Y=\"471\" />\n          <V X=\"47517\" Y=\"13869\" />\n        </Vertices>\n        <Comments />\n      </Region>\n    </Regions>\n  </Annotation>\n  <Annotation LineColor=\"255\" Name=\"Tumor\" Visible=\"True\">\n    <Regio"
+  }
+}

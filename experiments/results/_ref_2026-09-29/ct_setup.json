@@ -1,0 +1,30 @@
+{
+  "counts": {
+    "discovery": 190,
+    "rad_valid": 47
+  },
+  "biomedclip": {
+    "device": "cuda",
+    "embed_dim": 512
+  },
+  "series_match": {
+    "seg": "190323_amp.mha",
+    "mask_size": [
+      512,
+      512,
+      130
+    ],
+    "mask_spacing": [
+      0.761719,
+      0.761719,
+      4.96124
+    ],
+    "n_series": 7,
+    "matched_series": "2",
+    "lesion_voxels": 12598,
+    "mask_labels": [
+      0,
+      1
+    ]
+  }
+}

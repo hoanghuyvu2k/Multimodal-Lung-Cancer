@@ -1,0 +1,263 @@
+{
+  "method": "stacked",
+  "benchmarks": {
+    "BM1": {
+      "benchmark": "BM1",
+      "benchmark_name": "Rad+IHC-G+Gen+PDL1",
+      "n_samples": 247,
+      "seeds": [
+        42,
+        7,
+        123,
+        2024,
+        31337
+      ],
+      "per_seed_auc": [
+        0.7755884917175241,
+        0.7349607672188317,
+        0.7576285963382737,
+        0.7439407149084568,
+        0.7499564080209242
+      ],
+      "mean_auc": 0.752414995640802,
+      "sd_auc": 0.01538425111495567,
+      "compare": {
+        "uniform_avg": {
+          "delta_auc": -0.019180470793373927,
+          "ci_low": -0.06441577120939997,
+          "ci_high": 0.02744487191930059,
+          "p_value": 0.424
+        },
+        "original": {
+          "delta_auc": -0.009415867480383588,
+          "ci_low": -0.06559918157758474,
+          "ci_high": 0.04604770175282334,
+          "p_value": 0.77
+        },
+        "ovo": {
+          "delta_auc": -0.018482999128160316,
+          "ci_low": -0.06589901263837171,
+          "ci_high": 0.03047095438215619,
+          "p_value": 0.46
+        },
+        "lr_late": {
+          "delta_auc": -0.0024411508282475847,
+          "ci_low": -0.03223995765780839,
+          "ci_high": 0.025707456895801884,
+          "p_value": 0.893
+        }
+      }
+    },
+    "BM2": {
+      "benchmark": "BM2",
+      "benchmark_name": "Rad+IHC-G+Gen+PDL1+Labs",
+      "n_samples": 247,
+      "seeds": [
+        42,
+        7,
+        123,
+        2024,
+        31337
+      ],
+      "per_seed_auc": [
+        0.7550130775937227,
+        0.7367916303400175,
+        0.7600697471665214,
+        0.7421098517872713,
+        0.7455100261551875
+      ],
+      "mean_auc": 0.747898866608544,
+      "sd_auc": 0.0095043711040706,
+      "compare": {
+        "uniform_avg": {
+          "delta_auc": -0.010374891020052401,
+          "ci_low": -0.05910177689647459,
+          "ci_high": 0.03964603932472533,
+          "p_value": 0.693
+        },
+        "original": {
+          "delta_auc": -0.011769834350479513,
+          "ci_low": -0.06733981374387173,
+          "ci_high": 0.043545020290240204,
+          "p_value": 0.671
+        },
+        "ovo": {
+          "delta_auc": -0.007323452484742754,
+          "ci_low": -0.05672084859584857,
+          "ci_high": 0.04280705355021545,
+          "p_value": 0.81
+        },
+        "lr_late": {
+          "delta_auc": 0.0017436791630339732,
+          "ci_low": -0.032699820180091224,
+          "ci_high": 0.03392052086459802,
+          "p_value": 0.932
+        }
+      }
+    },
+    "BM3": {
+      "benchmark": "BM3",
+      "benchmark_name": "Rad+Gen",
+      "n_samples": 247,
+      "seeds": [
+        42,
+        7,
+        123,
+        2024,
+        31337
+      ],
+      "per_seed_auc": [
+        0.7205754141238012,
+        0.6975152571926766,
+        0.7192676547515258,
+        0.6964254577157803,
+        0.7068003487358326
+      ],
+      "mean_auc": 0.7081168265039233,
+      "sd_auc": 0.011514901929729064,
+      "compare": {
+        "uniform_avg": {
+          "delta_auc": -0.0006974716652136115,
+          "ci_low": -0.05264105785240007,
+          "ci_high": 0.04671821416652836,
+          "p_value": 0.951
+        },
+        "original": {
+          "delta_auc": -0.0011333914559721325,
+          "ci_low": -0.054251663493780064,
+          "ci_high": 0.048435163927541616,
+          "p_value": 0.957
+        },
+        "ovo": {
+          "delta_auc": -0.0015693112467306536,
+          "ci_low": -0.05382606343932289,
+          "ci_high": 0.04582517076419508,
+          "p_value": 0.933
+        },
+        "lr_late": {
+          "delta_auc": 0.022667829119441985,
+          "ci_low": -0.013320903073873291,
+          "ci_high": 0.058918758154885204,
+          "p_value": 0.196
+        }
+      }
+    },
+    "BM4": {
+      "benchmark": "BM4",
+      "benchmark_name": "PDL1+Gen",
+      "n_samples": 247,
+      "seeds": [
+        42,
+        7,
+        123,
+        2024,
+        31337
+      ],
+      "per_seed_auc": [
+        0.7393199651264167,
+        0.745945945945946,
+        0.7440714908456845,
+        0.7316477768090671,
+        0.7501743679163035
+      ],
+      "mean_auc": 0.7422319093286835,
+      "sd_auc": 0.007084561680125906,
+      "compare": {
+        "uniform_avg": {
+          "delta_auc": 0.02057541412380115,
+          "ci_low": -0.015430764974377727,
+          "ci_high": 0.05683497536945797,
+          "p_value": 0.257
+        },
+        "original": {
+          "delta_auc": 0.033304272013949365,
+          "ci_low": -0.010332197865985316,
+          "ci_high": 0.07762494729819344,
+          "p_value": 0.123
+        },
+        "ovo": {
+          "delta_auc": 0.022580645161290214,
+          "ci_low": -0.01391241176128088,
+          "ci_high": 0.059935192900043885,
+          "p_value": 0.22
+        },
+        "lr_late": {
+          "delta_auc": -0.006015693112467302,
+          "ci_low": -0.019792535306491475,
+          "ci_high": 0.008794709388971509,
+          "p_value": 0.436
+        }
+      }
+    }
+  },
+  "ensemble": {
+    "BM1": {
+      "stacked": {
+        "mean_seed_auc": 0.752414995640802,
+        "sd_seed_auc": 0.01538425111495567,
+        "ensemble_auc": 0.7658238884045336,
+        "brier_ensemble": 0.15680512475436892
+      },
+      "uniform_avg": {
+        "mean_seed_auc": 0.7746469049694855,
+        "sd_seed_auc": 0.018593642446832977,
+        "ensemble_auc": 0.7850043591979076,
+        "brier_ensemble": 0.14972724897466386
+      }
+    },
+    "BM2": {
+      "stacked": {
+        "mean_seed_auc": 0.747898866608544,
+        "sd_seed_auc": 0.0095043711040706,
+        "ensemble_auc": 0.7639930252833479,
+        "brier_ensemble": 0.15660844051123413
+      },
+      "uniform_avg": {
+        "mean_seed_auc": 0.7665213600697471,
+        "sd_seed_auc": 0.010981026325254599,
+        "ensemble_auc": 0.7743679163034003,
+        "brier_ensemble": 0.15186011488808446
+      }
+    },
+    "BM3": {
+      "stacked": {
+        "mean_seed_auc": 0.7081168265039233,
+        "sd_seed_auc": 0.011514901929729064,
+        "ensemble_auc": 0.7248474280732345,
+        "brier_ensemble": 0.16603617655090247
+      },
+      "uniform_avg": {
+        "mean_seed_auc": 0.7110287707061901,
+        "sd_seed_auc": 0.014831910639604855,
+        "ensemble_auc": 0.7255448997384482,
+        "brier_ensemble": 0.1666687354598205
+      }
+    },
+    "BM4": {
+      "stacked": {
+        "mean_seed_auc": 0.7422319093286835,
+        "sd_seed_auc": 0.007084561680125906,
+        "ensemble_auc": 0.7448125544899739,
+        "brier_ensemble": 0.15950284587589963
+      },
+      "uniform_avg": {
+        "mean_seed_auc": 0.7191107236268527,
+        "sd_seed_auc": 0.008426939550372083,
+        "ensemble_auc": 0.7242371403661727,
+        "brier_ensemble": 0.1690520024483684
+      }
+    }
+  },
+  "external_note": {
+    "limitation": "Cohort ngoài đều đơn-modality (rad_valid=radiomics-only, path_valid=pathology-only). Stacked rút gọn về base learner của modality đó; phần fusion đa-modality (đóng góp chính của mô hình) KHÔNG kiểm chứng được ngoài mẫu.",
+    "external_base_lr": {
+      "pathology": 0.765,
+      "radiomics": 0.4611
+    },
+    "meta_weight_vs_generalization": {
+      "path_ihc_glcm_mean_abs": 0.1722,
+      "rad_lesion_ln_mean": 1.2696,
+      "verdict": "PHẢN-ROBUST: meta đề cao radiomics (ext ≤0.46) và hạ pathology (ext 0.767≈0 trọng số). Trọng số học từ OOF in-sample không mã hoá được generalization; stacked KHÔNG robust hơn uniform_avg với domain shift."
+    }
+  }
+}

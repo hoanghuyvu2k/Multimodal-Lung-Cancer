@@ -1,0 +1,42 @@
+{
+  "summary_by_k": {
+    "2": {
+      "n": 10,
+      "mean_delta": 0.0005918017050155266,
+      "median_delta": -0.0018388107730841208,
+      "uni_wins": 1,
+      "dyam_wins": 2
+    },
+    "3": {
+      "n": 10,
+      "mean_delta": 0.006693900095109761,
+      "median_delta": 0.003164777680906672,
+      "uni_wins": 1,
+      "dyam_wins": 0
+    },
+    "4": {
+      "n": 5,
+      "mean_delta": 0.010999128160418481,
+      "median_delta": 0.015100261551874272,
+      "uni_wins": 1,
+      "dyam_wins": 0
+    },
+    "5": {
+      "n": 1,
+      "mean_delta": 0.002685265911072321,
+      "median_delta": 0.002685265911072321,
+      "uni_wins": 0,
+      "dyam_wins": 0
+    }
+  },
+  "total": {
+    "n_combo": 26,
+    "uniform_ahead_mean": 14,
+    "uniform_sig_wins": 3,
+    "dyam_sig_wins": 2,
+    "dyam_win_combos": [
+      "PG",
+      "RL"
+    ]
+  }
+}

@@ -9,8 +9,8 @@
 \subsection{Study Design and Patient Cohort}
 \label{sec:cohort}
 
-This retrospective study used data from the MSK-MIND (Memorial Sloan Kettering
-Molecular-Informed Neoadjuvant/Definitive therapy) programme \cite{Vanguri2022},
+This retrospective study used data from the MSK~MIND (Multi-Modal Integration of Data)
+initiative at Memorial Sloan Kettering Cancer Center \cite{Vanguri2022},
 comprising patients with advanced non-small cell lung cancer (NSCLC) treated with
 immune checkpoint inhibitor (ICI) therapy between 2017 and 2021.
 Inclusion criteria were: (i) histologically confirmed stage~IIIB/IV NSCLC,
@@ -72,8 +72,9 @@ Six data sources were assembled for each patient
 Because CT radiomics is modelled separately per lesion site (PC, PL, LN) and
 the two pathology feature sets (IHC-A, IHC-G) are used as alternative arms
 rather than jointly, a single model receives up to seven input modalities.
-CT radiomics features were extracted from baseline scans using the MIRPON
-pipeline \cite{Dercle2020} at 1.0~mm isotropic spacing with a window of
+CT radiomics features were extracted from baseline scans using
+PyRadiomics \cite{vanGriethuysen2017}, following the preprocessing of
+\cite{Vanguri2022}, at 1.0~mm isotropic spacing with a window of
 $[{-1350}, 250]$~HU, yielding 1{,}688 features per lesion type.
 Lesions were categorised by anatomical site:
 primary tumour (PC), pleural lesion (PL), and lymph node (LN).
@@ -85,7 +86,7 @@ Pathology features were derived from PD-L1 immunohistochemistry (IHC) slides:
 texture features across six aggregation levels \cite{Vanguri2022}.
 Genomic features (11 variables) included tumour mutational burden (TMB) and
 the status of eight driver mutations and amplifications derived from
-FoundationOne~CDx next-generation sequencing (NGS).
+MSK-IMPACT targeted next-generation sequencing (NGS) \cite{Cheng2015}.
 The PD-L1 tumour proportion score (TPS) was obtained from clinical
 pathology reports (range 0--100\%).
 Clinical laboratory features comprised 13 variables:
@@ -118,10 +119,10 @@ zero risk to the fused prediction (Section~\ref{sec:model}).
 \toprule
 \textbf{Modality} & \textbf{Source} & \textbf{Features} & \textbf{Clinical meaning} \\
 \midrule
-CT Radiomics (PC, PL, LN) & MIRPON pipeline & $\leq$1{,}688 & Tumour shape, size, and texture from baseline CT \\
+CT Radiomics (PC, PL, LN) & PyRadiomics & $\leq$1{,}688 & Tumour shape, size, and texture from baseline CT \\
 Pathology IHC-A            & PD-L1 IHC slides & 18  & Pixel-intensity aggregation of PD-L1 expression \\
 Pathology IHC-G            & PD-L1 IHC slides & 150 & GLCM texture of PD-L1 signal \\
-Genomics                   & FoundationOne CDx & 11 & TMB + driver mutation/amplification status \\
+Genomics                   & MSK-IMPACT & 11 & TMB + driver mutation/amplification status \\
 PD-L1 TPS                  & Pathology report  & 1  & Tumour proportion score (0--100\%) \\
 Clinical labs              & EHR               & 13 & Demographics, performance status, labs \\
 \textbf{NLP embedding} (new) & \texttt{all-MiniLM-L6-v2} & 384 & Sentence embedding of clinical lab text \\
@@ -239,7 +240,7 @@ Attention weights are obtained by L1 normalisation across modalities:
 
 \paragraph{OvO competitive attention.}
 We propose an alternative attention mechanism inspired by
-one-versus-others (OvO) classification \cite{Hastie1998},
+one-versus-others (OvO) classification \cite{Rifkin2004},
 in which each modality \emph{competes} against the mean score of
 all remaining modalities rather than sharing a fixed budget.
 The mean score of the $N-1$ competing modalities is:
@@ -330,7 +331,7 @@ Bootstrap 95\% CIs were derived from 1{,}000 resamples with replacement.
 For pairwise comparisons, per-fold C-indices (10 values) were compared with
 a two-sided Wilcoxon signed-rank test ($\alpha = 0.05$).
 Time-dependent AUC was computed at 6, 12, and 18~months using the
-cumulative/dynamic estimator \cite{Harrell1996}.
+cumulative/dynamic estimator \cite{Uno2007,Hung2010}.
 Multivariate Cox proportional hazards regression was fitted with the
 DyAM risk score as the primary predictor, adjusted for five clinical
 covariates: age, ECOG performance status, serum albumin, dNLR, and

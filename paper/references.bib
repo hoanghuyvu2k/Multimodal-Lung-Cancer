@@ -104,7 +104,8 @@
   author    = {Reimers, Nils and Gurevych, Iryna},
   title     = {Sentence-{BERT}: Sentence Embeddings using {Siamese BERT}-Networks},
   booktitle = {Proceedings of the 2019 Conference on Empirical Methods in
-               Natural Language Processing (EMNLP)},
+               Natural Language Processing and the 9th International Joint
+               Conference on Natural Language Processing (EMNLP-IJCNLP)},
   year      = {2019},
   pages     = {3982--3992},
   doi       = {10.18653/v1/D19-1410}
@@ -195,7 +196,8 @@
   title     = {Attention Is All You Need},
   booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
   year      = {2017},
-  volume    = {30}
+  volume    = {30},
+  pages     = {5998--6008}
 }
 
 %% --- DyAM Base Model (prior work this manuscript builds on) ---
@@ -216,4 +218,134 @@
   number  = {10},
   pages   = {1151--1164},
   doi     = {10.1038/s43018-022-00416-8}
+}
+
+%% ============ Added 2026-09-30 (citation audit: replace mis-attributed citations) ============
+
+%% --- ICI resistance (replaces Rizvi2015 for the resistance claim) ---
+@article{Sharma2017,
+  author  = {Sharma, Padmanee and Hu-Lieskovan, Siwen and Wargo, Jennifer A. and Ribas, Antoni},
+  title   = {Primary, Adaptive, and Acquired Resistance to Cancer Immunotherapy},
+  journal = {Cell},
+  year    = {2017},
+  volume  = {168},
+  number  = {4},
+  pages   = {707--723},
+  doi     = {10.1016/j.cell.2017.01.017}
+}
+
+%% --- PD-L1 assay dependence ---
+@article{Hirsch2017,
+  author  = {Hirsch, Fred R. and McElhinny, Abigail and Stanforth, Dave and
+             Ranger-Moore, James and others},
+  title   = {{PD-L1} Immunohistochemistry Assays for Lung Cancer: Results from
+             Phase 1 of the {Blueprint PD-L1 IHC Assay Comparison Project}},
+  journal = {Journal of Thoracic Oncology},
+  year    = {2017},
+  volume  = {12},
+  number  = {2},
+  pages   = {208--222},
+  doi     = {10.1016/j.jtho.2016.11.2228}
+}
+
+%% --- Discriminative performance of PD-L1 / TMB (meta-analysis of AUCs) ---
+@article{Lu2019,
+  author  = {Lu, Steve and Stein, Julie E. and Rimm, David L. and Wang, Daphne W.
+             and others},
+  title   = {Comparison of Biomarker Modalities for Predicting Response to
+             {PD-1/PD-L1} Checkpoint Blockade: A Systematic Review and Meta-analysis},
+  journal = {JAMA Oncology},
+  year    = {2019},
+  volume  = {5},
+  number  = {8},
+  pages   = {1195--1204},
+  doi     = {10.1001/jamaoncol.2019.1549}
+}
+
+%% --- Multimodal integration in oncology (review) ---
+@article{Boehm2022,
+  author  = {Boehm, Kevin M. and Khosravi, Pegah and Vanguri, Rami and Gao, Jianjiong
+             and Shah, Sohrab P.},
+  title   = {Harnessing multimodal data integration to advance precision oncology},
+  journal = {Nature Reviews Cancer},
+  year    = {2022},
+  volume  = {22},
+  number  = {2},
+  pages   = {114--126},
+  doi     = {10.1038/s41568-021-00408-3}
+}
+
+%% --- Radiomics extraction software (replaces Dercle2020 "MIRPON pipeline") ---
+@article{vanGriethuysen2017,
+  author  = {van Griethuysen, Joost J. M. and Fedorov, Andriy and Parmar, Chintan
+             and Hosny, Ahmed and others},
+  title   = {Computational Radiomics System to Decode the Radiographic Phenotype},
+  journal = {Cancer Research},
+  year    = {2017},
+  volume  = {77},
+  number  = {21},
+  pages   = {e104--e107},
+  doi     = {10.1158/0008-5472.CAN-17-0339}
+}
+
+%% --- Genomic sequencing platform of the MSK cohort ---
+@article{Cheng2015,
+  author  = {Cheng, Donavan T. and Mitchell, Talia N. and Zehir, Ahmet and
+             Shah, Ronak H. and others},
+  title   = {Memorial Sloan Kettering-Integrated Mutation Profiling of Actionable
+             Cancer Targets ({MSK-IMPACT}): A Hybridization Capture-Based
+             Next-Generation Sequencing Clinical Assay for Solid Tumor Molecular
+             Oncology},
+  journal = {The Journal of Molecular Diagnostics},
+  year    = {2015},
+  volume  = {17},
+  number  = {3},
+  pages   = {251--264},
+  doi     = {10.1016/j.jmoldx.2014.12.006}
+}
+
+%% --- One-vs-rest classification (replaces Hastie1998, which is one-vs-one pairwise coupling) ---
+@article{Rifkin2004,
+  author  = {Rifkin, Ryan and Klautau, Aldebaro},
+  title   = {In Defense of One-Vs-All Classification},
+  journal = {Journal of Machine Learning Research},
+  year    = {2004},
+  volume  = {5},
+  pages   = {101--141}
+}
+
+%% --- Time-dependent (cumulative/dynamic) AUC, as implemented in sksurv.metrics.cumulative_dynamic_auc ---
+@article{Uno2007,
+  author  = {Uno, Hajime and Cai, Tianxi and Tian, Lu and Wei, L. J.},
+  title   = {Evaluating Prediction Rules for $t$-Year Survivors With Censored
+             Regression Models},
+  journal = {Journal of the American Statistical Association},
+  year    = {2007},
+  volume  = {102},
+  number  = {478},
+  pages   = {527--537},
+  doi     = {10.1198/016214507000000149}
+}
+
+@article{Hung2010,
+  author  = {Hung, Hung and Chiang, Chin-Tsang},
+  title   = {Estimation methods for time-dependent {AUC} models with survival data},
+  journal = {Canadian Journal of Statistics},
+  year    = {2010},
+  volume  = {38},
+  number  = {1},
+  pages   = {8--26},
+  doi     = {10.1002/cjs.10046}
+}
+
+%% --- AUC interpretation guideline (replaces Vanguri2022 for the "AUC > 0.80" claim) ---
+@article{Mandrekar2010,
+  author  = {Mandrekar, Jayawant N.},
+  title   = {Receiver Operating Characteristic Curve in Diagnostic Test Assessment},
+  journal = {Journal of Thoracic Oncology},
+  year    = {2010},
+  volume  = {5},
+  number  = {9},
+  pages   = {1315--1316},
+  doi     = {10.1097/JTO.0b013e3181ec173d}
 }
