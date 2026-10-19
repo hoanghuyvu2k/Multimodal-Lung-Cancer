@@ -123,11 +123,11 @@ local imports). Do NOT rebuild it from scratch.
 - When the user asks to convert/export the paper to Word (docx).
 - **Automatically every time the user asks to compile the paper PDF** (`latexmk`/`pdflatex` on
   `paper/main.tex`): after the PDF build succeeds, also run the Word export in the same task so
-  `paper/manuscript_word.docx` never drifts out of date. The user should not have to ask.
+  `paper/manuscript_word_5seed_<YYYYMMDD_HHMM>.docx` never drifts out of date. The user should not have to ask.
 
 **How:**
-1. **Run:** `python paper/word_export/build_manuscript_docx.py` → outputs `paper/manuscript_word.docx`
-   (auto-falls back to `_v2`, `_v3`... if the target is locked open in Word).
+1. **Run:** `python paper/word_export/build_manuscript_docx.py` → outputs `paper/manuscript_word_5seed_<YYYYMMDD_HHMM>.docx`
+   (every build has a NEW name with date and time; the scripts move earlier versions into `word_archive/`).
 2. **Content is hand-ported** from `paper/sections/*.tex` + `paper/tables/*.tex` into the script —
    if the LaTeX sections changed since the last export, FIRST update the corresponding
    text/tables inside `build_manuscript_docx.py` to match (numbers must stay identical to the
@@ -159,6 +159,15 @@ pip install sentence-transformers
 There are no test suites, linting configs, or build steps. This is a research codebase.
 
 All scripts use `importlib.reload(lung_helpers)` at the top — this is intentional for hot-reload during development, not a bug.
+
+## paper_1seed Word sync rule
+
+`paper_1seed/` (single-partition paper) has its own export script `paper_1seed/word_export/build_manuscript_docx.py`,
+which renders Abstract/Introduction/Methods/Results/Discussion/Conclusion/tables from `paper_1seed/sections/*.tex`,
+`paper_1seed/tables/*.tex` and `paper_1seed/main.tex`, and re-renders figure PNGs from the PDFs.
+**Whenever anything in `paper_1seed/` changes** (sections, tables, figures, main.tex, references.bib), after the PDF
+build also run `python paper_1seed/word_export/build_manuscript_docx.py` so `paper_1seed/manuscript_word_1seed_<YYYYMMDD_HHMM>.docx`
+never drifts out of date (the user should not have to ask). Same applies to `paper/` and its Word file.
 
 ## Architecture
 
@@ -261,3 +270,66 @@ Full project documentation is in `README.md` (combined) with detailed references
 - `document/ovo-attention.md` – OvO variant, experimental results across 20 test cases
 - `document/nlp-clinical.md` – NLP clinical embedding implementation guide
 - `document/du-lieu-radiomics.md` – radiomics feature naming conventions
+
+## Disk space rule (C: drive is full)
+
+The `C:` drive is nearly full (it dropped to 0.3 GB free once). **Never download or store packages,
+environments, caches or large files on `C:`.** Put them inside this project folder or on the `D:` drive.
+
+- **New conda/venv environments:** create them on D: with a path, e.g.
+  `conda create -p D:\envs\<name> python=3.x` or `python -m venv D:\envs\<name>`. Do NOT use
+  `conda create -n <name>` (that writes under `C:\Users\Admin\miniconda3\envs`).
+- **pip installs of throw-away versions:** use `--target D:\tmp_repro\<name>` (or a venv on D:) plus
+  `--no-cache-dir`, and set `TEMP`/`TMP` to a folder on D: for that command, because pip unpacks wheels
+  into `%TEMP%` (on C:) and keeps a wheel cache in `%LOCALAPPDATA%\pip\Cache` (on C:, it grew to 16 GB).
+- **Scratch files, downloads, model caches:** keep them on D: (for example set `HF_HOME` and
+  `TORCH_HOME` to a D: folder before downloading models). The session scratchpad is under `%TEMP%` on C:,
+  so keep it to small scripts and logs only.
+- **Clean up after yourself:** delete throw-away environments and `--target` folders when the
+  investigation is done. If a path is blocked as "protected", tell the user instead of working around it.
+- **Existing environments on C:** `doan-env` and `doan-orig` (conda) and `venv_np2` already live on C:
+  and are in use. Leave them; the rule is for anything NEW.
+- Before any large install or download, check free space (`Get-PSDrive C,D`) and stop if `C:` has less
+  than about 5 GB free.
+
+## Reference training environment rule (`ref-linux-py38`)
+
+Since 2026-10-13 the project has a **reference training environment** that reproduces the original
+paper's best result (DyAM Rad+IHC-A+Gen+PDL1, AUC 0.798169; re-run 0.798256, one patient pair off).
+**Whenever you train or evaluate anything (DyAM, OvO, NLP, baselines, new variants), run it in this
+environment and with this configuration**, unless the user says otherwise. Full spec, with why:
+`document/2026-10-13_reference-training-config/reference-training-config.md`; machine-readable:
+`experiments/reference_env/reference_config.json`.
+
+- **Environment:** Linux (WSL2 Ubuntu-22.04), Python 3.8.15, torch 1.8.1+cpu, scikit-learn **0.24.2**,
+  numpy 1.20.3, scipy 1.6.3, pandas 1.2.5, lifelines 0.26.0, located at `D:\envs\py38sa`.
+  Never upgrade scikit-learn, numpy or torch inside it.
+- **How to run** (from `code/`, Git Bash; `MSYS_NO_PATHCONV=1` is mandatory):
+  `MSYS_NO_PATHCONV=1 wsl.exe -d Ubuntu-22.04 -- bash /mnt/d/code/master/doan/code/experiments/reference_env/run_ref.sh experiments/<dir>/<script>.py [args]`
+  Run long jobs with `run_in_background`. Write the script's paths so they work from `code/` on Linux
+  (use `Path(__file__)`, not `C:\...`). The data-cache folder is on D: (`ATTN_CACHE_DIR`).
+- **Training configuration (unchanged from §0 of `result/training-results.md`):** epochs 125, lr 0.01,
+  alpha 0.001, beta 0.0, `cross_modality_enabled` False, `attention_gate_enabled=False` for single
+  modalities, radiomics filter `ctx.rad_filters` with `l1_strength 0.1` (NOT `clean_rad_filters`),
+  `KFold(10, shuffle=True, random_state=0)`, discovery cohort n=247. Single run = seed 42 in natural
+  patient order (the notebook way); multi-seed = `SEEDS [42,7,123,2024,31337]` with label permutation.
+- **Verify before trusting a new session or after any environment change:** run
+  `experiments/reference_env/verify_ref_env.py` via `run_ref.sh`; it must print DyAM Rad+IHC-A+Gen+PDL1
+  = 0.798256 (tolerance 1e-5). If it does not, stop and fix the environment first.
+- **Log the environment** in every `result/training-results.md` entry: write `env: ref-linux-py38`
+  next to the config (item 3 of the Result logging rule). If a run cannot use it (needs a GPU, a newer
+  library such as sentence-transformers, or a package missing from the environment), run it elsewhere
+  but say so explicitly in the entry and do not compare its numbers directly with reference-env numbers.
+- **Never compare numbers across platforms.** The same code with the same library versions gave 0.7879
+  on Windows and 0.798256 on Linux. Results logged before 2026-10-13 and the paper tables were produced
+  on Windows; keep them, but to compare two models run both in the same environment. On 2026-10-13 the
+  paper tables and numbers were re-run in the reference environment (`result/training-results.md` §2.65,
+  outputs in `experiments/results/ref/`, generated with `python paper/make_results_tables.py --ref`; the old
+  Windows tables are in `paper/tables/_windows_2026-10-12/`). Use `experiments/reference_env/run_paper_ref.py`
+  for the 20-seed, leave-one-out, availability-vector and order-based analyses: it replaces `build_l1` with the
+  uncleaned `ctx.rad_filters` required by this rule.
+- **LR rows are not deterministic** (final `saga` has no seed); do not use them as exact-match checks.
+  A difference of +-0.000087 AUC is one patient pair (62 x 185 pairs), not an error.
+- The environment lives on D: and must stay there (see the Disk space rule). To rebuild it from scratch
+  use `experiments/reference_env/setup_ref_env.sh` inside WSL (do not use conda; NTFS is
+  case-insensitive and breaks the ncurses package).

@@ -1,0 +1,14 @@
+tổ hợp                          OvO+NLP+miss  ensemble
+   -> đã ghi D:\code\master\doan\code\experiments\results\ovo_stack.json
+Rad+IHC-A+Gen             0.7624±0.016          0.7746   vs DyAM Δ=+0.0255 CI[-0.0177,+0.0677] p=0.232
+   -> đã ghi D:\code\master\doan\code\experiments\results\ovo_stack.json
+Rad+IHC-G+Gen             0.7778±0.016          0.7897   vs DyAM Δ=+0.0218 CI[-0.0118,+0.0581] p=0.212
+   -> đã ghi D:\code\master\doan\code\experiments\results\ovo_stack.json
+Rad+IHC-A+MutAmp          0.7552±0.019          0.7622   vs DyAM Δ=+0.0182 CI[-0.0138,+0.0506] p=0.244
+   -> đã ghi D:\code\master\doan\code\experiments\results\ovo_stack.json
+Rad+IHC-A+Gen+PDL1        0.7629±0.010          0.7728   vs DyAM Δ=+0.0175 CI[-0.0194,+0.0573] p=0.334
+   -> đã ghi D:\code\master\doan\code\experiments\results\ovo_stack.json
+Rad+IHC-G+Gen+PDL1        0.7874±0.012          0.7933   vs DyAM Δ=+0.0169 CI[-0.0180,+0.0529] p=0.317
+   -> đã ghi D:\code\master\doan\code\experiments\results\ovo_stack.json
+Rad+IHC-A+Gen+TMB+PDL1    0.7712±0.012          0.7785   vs DyAM Δ=+0.0220 CI[-0.0137,+0.0591] p=0.228
+XONG

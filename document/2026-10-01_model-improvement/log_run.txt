@@ -1,0 +1,88 @@
+
+============================================================================================
+HƯỚNG 4 — dò siêu tham số
+============================================================================================
+cấu hình                           AUC   ensemble
+base (125/0.01/0.001) 0.7823±0.009     0.7921
+epochs=75             0.7903±0.007     0.7966   Δ=+0.0080
+epochs=200            0.7811±0.011     0.7921   Δ=-0.0012
+lr=0.005              0.7897±0.005     0.7972   Δ=+0.0073
+lr=0.02               0.7806±0.014     0.7915   Δ=-0.0017
+alpha=0.0001          0.7885±0.010     0.7984   Δ=+0.0062
+alpha=0.01            0.7384±0.013     0.7432   Δ=-0.0440
+beta=0.001            0.7823±0.009     0.7921   Δ=+0.0000
+   -> đã ghi D:\code\master\doan\code\experiments\results\modelimp.json
+[hướng 4] OK sau 11.7 phút
+
+============================================================================================
+HƯỚNG 3 — pairwise loss + modality dropout
+============================================================================================
+tổ hợp                  cấu hình                           AUC   ensemble        Δ
+Rad+IHC-G+Gen+PDL1      BCE (nền)             0.7730±0.019     0.7838  +0.0000
+                        pairwise              0.7775±0.017     0.7904  +0.0045
+                        dropout 0.2           0.7701±0.016     0.7783  -0.0028
+                        pairwise+dropout      0.7682±0.014     0.7768  -0.0048
+PDL1+Gen                BCE (nền)             0.7191±0.008     0.7241  +0.0000
+                        pairwise              0.7207±0.009     0.7241  +0.0016
+                        dropout 0.2           0.7226±0.010     0.7249  +0.0035
+                        pairwise+dropout      0.7226±0.008     0.7248  +0.0035
+   -> đã ghi D:\code\master\doan\code\experiments\results\modelimp.json
+[hướng 3] OK sau 11.3 phút
+
+============================================================================================
+HƯỚNG 1 — ComBat radiomics
+============================================================================================
+247 62
+[neuroCombat] Creating design matrix
+[neuroCombat] Standardizing data across features
+[neuroCombat] Fitting L/S model and finding priors
+[neuroCombat] Finding parametric adjustments
+[neuroCombat] Final adjustment of data
+Traceback (most recent call last):
+  File "D:\code\master\doan\code\experiments\modelimp\run_all.py", line 189, in main
+    PAYLOAD["huong"][key] = fn(ctx)
+                            ~~^^^^^
+  File "D:\code\master\doan\code\experiments\modelimp\run_all.py", line 161, in huong_1
+    ctx_h = load_harmonized()
+  File "D:\code\master\doan\code\experiments\modelimp\combat_rad.py", line 88, in load_harmonized
+    ctx = ds.load_all(use_cache=False)
+  File "D:\code\master\doan\code\experiments\common\data_setup.py", line 151, in load_all
+    ctx = _build()
+  File "D:\code\master\doan\code\experiments\common\data_setup.py", line 100, in _build
+    df_radiology_by_site = decorate_with_site_index(df_radiology)
+  File "D:\code\master\doan\code\lung_helpers.py", line 564, in decorate_with_site_index
+    data_table_RF_PA.loc[:,'site'] = 'PC'   # primary / phổi
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\Lib\site-packages\pandas\core\indexing.py", line 912, in __setitem__
+    iloc._setitem_with_indexer(indexer, value, self.name)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Admin\miniconda3\Lib\site-packages\pandas\core\indexing.py", line 1848, in _setitem_with_indexer
+    raise ValueError(
+    ...<2 lines>...
+    )
+ValueError: cannot set a frame with no defined index and a scalar
+   -> đã ghi D:\code\master\doan\code\experiments\results\modelimp.json
+[hướng 1] LỖI sau 0.1 phút
+
+============================================================================================
+TỔNG KẾT
+============================================================================================
+  hướng 4  OK     11.7 phút  
+  hướng 3  OK     11.3 phút  
+  hướng 1  LỖI     0.1 phút  ValueError: cannot set a frame with no defined index and a scalar
+
+============================================================================================
+HƯỚNG 1 — ComBat radiomics
+============================================================================================
+247 62
+[neuroCombat] Creating design matrix
+[neuroCombat] Standardizing data across features
+[neuroCombat] Fitting L/S model and finding priors
+[neuroCombat] Finding parametric adjustments
+[neuroCombat] Final adjustment of data
+(array([1.]), array([163], dtype=int64))
+(array([3.]), array([21], dtype=int64))
+(array([5.]), array([67], dtype=int64))
+(array([1., 2., 3., 4., 5., 6.]), array([133,   6,   4,   5,  28,  11], dtype=int64))
+   [ComBat] đã hài hoà 1609 đặc trưng radiomics trên 3996 dòng; batch: {'unknown': 212, 'revolution': 69, 'lightspeed': 52}
+tổ hợp                               gốc          ComBat        Δ

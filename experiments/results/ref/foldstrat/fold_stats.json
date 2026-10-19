@@ -1,0 +1,17 @@
+{
+ "random": {
+  "sd_across_folds_pos_rate": 0.0853897089969659,
+  "sd_across_folds_frac_pathology": 0.08944955468638352,
+  "sd_across_folds_mean_n_sources": 0.19630271996247897
+ },
+ "label": {
+  "sd_across_folds_pos_rate": 0.01595131481867388,
+  "sd_across_folds_frac_pathology": 0.0915312058336826,
+  "sd_across_folds_mean_n_sources": 0.19542741099901292
+ },
+ "pattern": {
+  "sd_across_folds_pos_rate": 0.026377551927860687,
+  "sd_across_folds_frac_pathology": 0.04850730595042017,
+  "sd_across_folds_mean_n_sources": 0.127108590278873
+ }
+}

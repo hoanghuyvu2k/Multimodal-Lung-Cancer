@@ -1,125 +1,75 @@
-%% sections/discussion.tex — Step B10
+%% sections/discussion.tex — 5-seed version
 \section{Discussion}
 \label{sec:discussion}
 
-In this study, we extended the DyAM multimodal attention framework with two
-complementary contributions: a competitive (OvO) attention mechanism and an
-NLP-based encoding of tabular clinical features, and evaluated both using
-binary classification and survival endpoints.
+We extended the DyAM multimodal attention framework with two contributions, a competitive (OvO) attention mechanism with fewer
+parameters and an NLP-based encoding of tabular clinical features, and evaluated them on response (AUC) and progression-free survival in a
+247-patient cohort, with 5~seeds~$\times$~10-fold repeated cross-validation over 21 modality combinations.
+The experiments support four conclusions.
 
-The best-performing model, DyAM Rad+IHC-G+Gen+PDL1+NLP~raw, achieved
-AUC~$= 0.813$ [95\%~CI: 0.753--0.874], placing it in the
-``excellent'' discrimination range ($0.80 \leq \text{AUC} < 0.90$) under commonly
-used interpretation guidelines \cite{Mandrekar2010}.
-For context, this exceeds the single-source models evaluated in the same
-cohort under the DyAM framework --- PD-L1~TPS alone (AUC~$= 0.720$) and TMB
-alone (AUC~$= 0.616$) --- consistent with the modest discrimination reported
-for these markers in the literature \cite{Lu2019,Rizvi2015}.
-This confirms that multimodal fusion, augmented with NLP-encoded clinical
-context, approaches the upper range of discrimination achievable with
-currently available biomarkers in this disease setting.
+\paragraph{Fusing sources is what moves performance.}
+The best single source was PD-L1~TPS ($0.720 \pm 0.012$), followed by genomics ($0.676$), CT radiomics ($0.672$) and TMB ($0.616$).
+Fusing four sources raised the mean AUC to $0.763 \pm 0.022$ and adding the NLP-encoded clinical variables to $0.786 \pm 0.017$,
+$0.066$ above PD-L1~TPS, the biomarker in routine use, and above the modest discrimination reported for PD-L1 and TMB
+\cite{Lu2019,Rizvi2015}. The ensemble of the five partitions reached $0.799$, close to the $0.80$ reported for the original framework
+\cite{Vanguri2022}.
+The same pattern held for survival: the association of the risk score with progression-free survival rose from a C-index of
+$0.567$--$0.587$ for a single source to $0.588$--$0.627$ for five to seven sources, and the 12-month time-dependent AUC from
+$0.596$--$0.661$ to $0.657$--$0.709$. In a leave-one-source-out analysis of OvO+NLP at the primary benchmark (Supplementary Note~S4),
+removing any single source lowered the mean AUC in 4 or 5 of 5 seeds, by $0.013$ (NLP-encoded clinical variables) to $0.029$ (pathology),
+so every source contributed. Two endpoints and a leave-one-out analysis therefore point to the same conclusion, that the sources carry
+complementary information that attention-based fusion can combine.
 
-Why does NLP encoding outperform raw numeric clinical features?
-We propose that sentence embeddings capture non-linear interactions between
-clinical variables --- for example, the combined prognostic implication of
-advanced age, low albumin, and poor performance status --- that are not
-explicitly represented in a 13-dimensional numeric vector.
-The MiniLM-L6-v2 embedding space \cite{Reimers2019,Wang2020MiniLM} is
-pretrained to place semantically similar sentences close together; patients
-with similar overall clinical profiles are therefore mapped to nearby
-embedding vectors even when no single numeric feature dominates.
-Raw numeric encoding, by contrast, presents each variable to the attention
-mechanism independently, requiring the model to learn these interactions
-de novo from a relatively small training set.
+\paragraph{The NLP encoding of clinical variables is better than numeric labs.}
+This was the most consistent finding of the study. Replacing the 13 numeric laboratory and clinical values by their sentence embedding
+raised the mean AUC in all six comparisons that were made: $+0.017$ and $+0.020$ in the two pathology arms under cooperative attention,
+$+0.014$ and $+0.024$ in the two seven-source configurations under cooperative attention, and $+0.022$ and $+0.019$ in the same two
+configurations under OvO attention, so the benefit appeared with both attention mechanisms and both pathology encodings.
+A plausible reason is that a sentence embedding represents combinations of variables, for example advanced age together with low albumin and
+poor performance status, that are not explicit in a 13-dimensional numeric vector and that the attention module would otherwise have to learn from a
+small training set \cite{Reimers2019,Wang2020MiniLM}; our data do not test this mechanism.
+The AUC with the encoding was also above that of the same sources without any clinical variable ($+0.023$ for DyAM and $+0.014$ for OvO at the
+primary benchmark), numeric labs were below that baseline in the arm analysis, and the general-purpose sentence encoder was better than the
+domain-specific BioClinBERT in all five partitions (Supplementary Note~S2), so no clinical fine-tuning was needed.
+For survival, the NLP encodings gave higher hazard ratios than no clinical encoding in both arms ($4.12$ to $4.43$--$4.52$ in IHC-A and $4.02$ to
+$4.47$--$4.63$ in IHC-G), and at the primary benchmark the log hazard ratio rose by $+0.043$ when the NLP encoding alone was added to cooperative attention.
 
-The AUC improvements associated with NLP encoding ($+0.017$ to $+0.030$)
-did not reach statistical significance under DeLong confidence interval
-testing, as all CIs overlapped substantially.
-This is best interpreted as a power limitation rather than an absent effect.
-With $n = 247$, the 95\%~CI width for AUC is approximately $\pm 0.07$;
-detecting a true $\Delta\text{AUC} \approx 0.02$ at 80\% power would require
-approximately 950--1{,}250 patients (Supplementary Note~S3).
-The directional consistency of the improvement across both the IHC-A and
-IHC-G arms, and across raw and PCA-compressed NLP variants, supports a true
-but modest effect size that is currently underpowered rather than null.
+\paragraph{OvO attention is the better fusion mechanism for many sources, with a quarter of the parameters.}
+OvO had the higher mean AUC at the primary benchmark ($0.771$ against $0.763$; four of five seeds) and by $+0.019$ to $+0.021$ at
+Rad+IHC-A+MutAmp, Rad+IHC-A+Gen+PDL1 and Rad+IHC-A+Gen+TMB+PDL1, and by $+0.045$ at TMB+PDL1, each in all five seeds.
+With the NLP encoding added as a source, OvO+NLP was above DyAM+NLP in all five seeds at four of the six configurations with five or more sources
+($+0.010$ to $+0.028$), while using $1{,}242$ trainable parameters against $4{,}969$.
+A learning-curve analysis is compatible with a parameter-economy explanation: with about $89$ training patients OvO+NLP reached $0.707$ and DyAM+NLP $0.677$,
+and the gap closed as the training set grew to $222$ patients ($0.785$ and $0.786$), with neither curve levelled off, so the smaller model helps most where
+data are scarcest, which is the situation of most multimodal clinical cohorts; we did not test the explanation by shrinking the cooperative attention matrix.
+The survival results favoured OvO more clearly than the AUC. In each of the eight configurations with five to seven sources, the mean log hazard ratio, the
+12-month time-dependent AUC and the C-index of OvO were above those of cooperative attention. At the primary benchmark OvO with the NLP encoding had a higher
+log hazard ratio than DyAM in all five seeds ($+0.070$, patient-bootstrap interval $0.013$ to $0.106$, which excludes zero) and a higher C-index in all five seeds,
+and the ordering was reproduced in two other software environments ($+0.070$ and $+0.076$). OvO with the NLP encoding also gave the highest log hazard ratio
+($0.495$ and $0.497$ against $0.416$ and $0.411$ for DyAM, higher in all five seeds) and 12-month time-dependent AUC ($0.708$ and $0.704$ against $0.675$ and $0.678$) in both
+configurations that contain labs. The cooperative model remained stronger in a few small configurations, such as IHC-G+Gen
+($-0.028$ AUC) and radiomics-only, so the choice of mechanism may depend on the number and kind of sources; the two formulations coincide for a single source.
 
-The survival analysis provides an important reframing of this finding.
-While binary AUC improvements were modest and non-significant, multivariate
-Cox regression showed that NLP-PCA16 achieved the highest hazard ratio in the
-IHC-A arm (HR~$= 6.07$ vs.\ HR~$= 5.30$ for the no-clinical baseline), and
-NLP raw achieved the highest hazard ratio in the IHC-G arm (HR~$= 4.97$ vs.\
-HR~$= 4.74$), whereas numeric clinical labs provided no comparable
-improvement in either arm.
-Furthermore, the time-dependent AUC advantage of NLP encoding was
-concentrated at 12 and 18~months ($+0.024$ and $+0.020$ in the IHC-A arm)
-rather than at 6~months.
-Taken together, these results suggest that NLP encoding of tabular clinical
-features predominantly captures \emph{prognostic (time-to-event)} information
-rather than \emph{predictive (binary response)} information --- a
-distinction with direct implications for how such encodings should be
-evaluated in future multimodal studies.
+\paragraph{The approach is practical.}
+Encoding a patient profile takes less than one second on CPU, needs no labelled clinical text, and can be applied to any structured electronic health record
+field that can be written as a sentence, so it can be transferred to other structured clinical datasets without a fine-tuned clinical language model.
+An availability vector, which tells the model which sources a patient has, raised the AUC by $0.015$--$0.017$ in the two Gen configurations without PD-L1 but only
+by $-0.003$ to $+0.008$ in the others (Supplementary Note~S5), and was not part of the main model.
 
-The OvO competitive attention mechanism matched the accuracy of the original
-cooperative attention while using a substantially simpler parameterization.
-An initial single-partition screen suggested a context-dependent pattern,
-with OvO favoured in low-modality configurations
-(up to $+3.27\%$ for PDL1+Gen) and the original model favoured as more
-modalities were added; the overall best-performing single-partition
-configuration (Rad+IHC-G+Gen+PDL1, AUC~$=0.8003$) used OvO attention.
-A confirmatory repeated-seed analysis (5~seeds~$\times$~10-fold) placed the
-two attention mechanisms within 0.011~AUC of each other at all four primary
-benchmarks ($p \geq 0.17$), with OvO reaching a repeated-seed mean AUC of
-$0.773$ versus $0.760$ for the cooperative model at the primary
-configuration --- directionally favouring OvO, though the single-partition
-``best'' configuration's rank relative to the cooperative model reversed
-once averaged across seeds, underscoring the value of repeated-seed
-evaluation over a single split.
-Across all 21 configurations the repeated-seed data also reversed the
-\emph{direction} of the context-dependence seen in the screen: OvO matched
-or exceeded cooperative attention in 7 of 8 configurations fusing five or
-more sources, but in only 5 of 9 configurations with two to four sources,
-where the spread between the two mechanisms was several times larger.
-A competitive one-vs-others weighting is plausibly better conditioned when
-many partially redundant sources compete, whereas with few sources the
-comparison against the mean of the remaining modalities is estimated from
-one or two values and becomes unstable; we note, however, that the effect
-sizes involved ($\leq 0.018$~AUC) sit below the seed-to-seed variability, so
-this remains a hypothesis generated by the data rather than a tested claim.
-When combined with NLP-clinical encoding, OvO reproduced the identical
-fusion-dependent improvement pattern seen in the primary NLP-clinical
-analysis (improvement in the same 15 of 21 configurations, decline in the
-same six single-modality configurations), reaching AUC~$=0.782$ at the
-primary benchmark under the repeated-seed protocol (repeated-seed
-NLP-clinical confirmation: $0.783$) and
-AUC~$=0.8133$ under the single-partition protocol at the
-Rad+IHC-A+Gen+TMB+PDL1 configuration --- the highest value observed under
-either protocol in this study.
-OvO's practical value lies in its simpler parameterization ---
-$N$ independent per-modality scores compared against the mean of the
-remaining modalities, rather than the $N \times N$ weight matrix required by
-cooperative attention --- delivering matching accuracy, and its improvement
-pattern under NLP-clinical encoding generalises across both attention
-mechanisms, indicating that the clinical-encoding intervention, not the
-choice of attention mechanism, is the source of the observed gain.
+\paragraph{Performance estimates.}
+A harder evaluation gave lower values: training on the patients with the earliest CT accession numbers and testing on the later 124 (a proxy for time, since calendar
+dates were not available) gave AUCs of $0.703$ ($0.587$--$0.819$) for OvO+NLP and $0.700$ ($0.587$--$0.812$) for DyAM+NLP, with $0.707$ and $0.678$ at seven sources.
+The cross-validated AUCs are therefore best read as the performance under the repeated cross-validation protocol rather than the expected performance in new
+patients. Because about 60 variants were compared on the same 247 patients, the highest figures also include some selection, which we estimate at $0.014$--$0.031$ AUC.
 
-From a clinical implementation perspective, NLP encoding of structured
-clinical data offers practical advantages: encoding a patient profile
-requires less than one second on CPU, requires no labelled clinical text,
-and can be applied to any structured electronic health record (EHR) field
-that can be rendered as a sentence.
-This makes the approach readily transferable to other structured clinical
-datasets without requiring a fine-tuned clinical language model.
-
-Several limitations should be considered.
-First, this was a single-institution retrospective cohort, which may limit
-generalisability and introduce selection bias.
-Second, the non-significant AUC improvement reflects the modest sample size
-($n = 247$) rather than a definitive negative result, and larger
-multi-institutional cohorts are needed to confirm the observed trends.
-Third, the sentence encoder was applied in a zero-shot manner without
-fine-tuning on NSCLC-specific clinical text, which may limit its sensitivity
-to domain-specific terminology.
-Finally, PD-L1 TPS was scored using the Sauter method in this cohort, which
-may differ from the SP142 or 22C3 assays used at other institutions, and the
-generalisability of PD-L1-derived features should be interpreted with this
-in mind.
+\paragraph{Limitations.}
+First, this was a single-institution retrospective cohort, which may limit generalisability and introduce selection bias.
+Second, with $n = 247$ (62 responders) the 95\% interval of an AUC is about $\pm 0.07$, and the differences between models, which are $0.02$ AUC or smaller
+at the primary benchmark, are smaller than this cohort can resolve (about 1{,}200--1{,}350 patients would be needed to detect $0.02$ AUC with 80\% power;
+Supplementary Note~S3), so they are described by direction and magnitude.
+Third, results depended on the numerical environment (in a reproduction check the same code gave $0.798$ on Linux and $0.788$ on Windows), so all results
+are from one pinned environment, and the repeated-seed analyses use the same patients in every partition, so they quantify partition variability and not variability across patients.
+Fourth, the sentence encoder was used without fine-tuning on NSCLC clinical text.
+Fifth, calendar dates were not available, so temporal validation was approximated by CT accession order and covered two configurations.
+Finally, PD-L1 TPS was scored with the Sauter method, which may differ from the SP142 or 22C3 assays used elsewhere, so PD-L1-derived features should be
+interpreted with this in mind.

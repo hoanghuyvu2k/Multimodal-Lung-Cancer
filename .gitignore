@@ -22,3 +22,41 @@ images/Screenshot*.png
 
 # --- Ban Word du phong khi file chinh dang mo trong Word ---
 paper/manuscript_word_v*.docx
+
+# --- File sinh ra khi chay / dung bai (them 2026-10-19) ---
+# LaTeX trung gian (giu lai main.pdf)
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.fls
+paper/*.fdb_latexmk
+paper/*.out
+paper/*.log
+paper/*.synctex.gz
+paper_1seed/*.aux
+paper_1seed/*.bbl
+paper_1seed/*.blg
+paper_1seed/*.fls
+paper_1seed/*.fdb_latexmk
+paper_1seed/*.out
+paper_1seed/*.log
+paper_1seed/*.synctex.gz
+paper/supplementary/*.aux
+paper/supplementary/*.log
+paper/supplementary/*.out
+paper_1seed/supplementary/*.aux
+paper_1seed/supplementary/*.log
+paper_1seed/supplementary/*.out
+# PNG do script Word dung tu PDF
+paper_1seed/figures/converted/
+# Ban Word cu tu dong chuyen vao word_archive, file khoa tam cua Word
+paper/word_archive/
+paper_1seed/word_archive/
+~$*
+# Log chay thi nghiem va diem tung benh nhan (so tong hop nam trong *.json va result/training-results.md)
+experiments/results/**/*.log
+experiments/results/ref/**/scores/
+experiments/results/**/scores/
+experiments/results/**/*_scores/
+experiments/results/survival_scores/
+paper_1seed/Definitions/*-eps-converted-to.pdf

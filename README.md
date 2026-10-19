@@ -60,6 +60,8 @@ Phân loại nhãn 0/1 trên bệnh nhân ung thư phổi:
 | DyAM Rad+IHC-A+Gen+PDL1 | **0.798** | [0.735, 0.861] |
 | **OvO** Rad+IHC-G+Gen+PDL1 | **0.8003** | [0.739, 0.862] |
 
+> Ghi chú nguồn số: hai dòng DyAM (0.759, 0.798) là output lưu sẵn trong `Figures-Finalized.ipynb` và `figures-finalized.html` của tác giả (hai file này cho cùng số; bản phát hành Synapse 2022-08-18). Chạy lại `lung_helpers.py` nguyên bản của nhánh `main` (trùng MD5 với bản trên Synapse) cùng dữ liệu gốc (trùng MD5) trong môi trường ghim của bài gốc (Python 3.9.13, torch 1.11.0, scikit-learn 1.1.1, scipy 1.8.1, numpy 1.22.4) trên Windows cho 0.738 và 0.764, nhưng trên Linux (Python 3.8.15, torch 1.8.1, scikit-learn 0.24.2, numpy 1.20.3, scipy 1.6.3, pandas 1.2.5) cho 0.759 và 0.798, khớp output lưu của tác giả (lệch tối đa một cặp bệnh nhân, 0.000087). Hệ điều hành là biến số quyết định; `requirements.txt` ghi sai scikit-learn (1.1.1, thực tế 0.24.2). Dòng OvO là kết quả của dự án này. Chi tiết: `document/2026-10-12_original-environment/original-environment.md`.
+
 ---
 
 ## 2. Dữ liệu sử dụng

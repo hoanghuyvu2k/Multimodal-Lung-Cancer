@@ -1,0 +1,27 @@
+{
+  "name": "ref-linux-py38",
+  "established": "2026-10-13",
+  "purpose": "Tái hiện output lưu của tác giả bài báo gốc (DyAM Rad+IHC-A+Gen+PDL1 AUC 0.798169) và là môi trường mặc định cho mọi lần train mới",
+  "platform": {"os": "Linux (WSL2 Ubuntu-22.04, kernel 6.6.87.2-microsoft-standard-WSL2)", "invoke": "MSYS_NO_PATHCONV=1 wsl.exe -d Ubuntu-22.04 -- bash /mnt/d/code/master/doan/code/experiments/reference_env/run_ref.sh <script.py>", "python": "D:/envs/py38sa/python/bin/python3.8 (python-build-standalone 3.8.15+20221106)"},
+  "packages": {"python": "3.8.15", "torch": "1.8.1+cpu", "scikit-learn": "0.24.2", "numpy": "1.20.3 (OpenBLAS)", "scipy": "1.6.3", "pandas": "1.2.5", "lifelines": "0.26.0", "pyarrow": "4.0.1", "matplotlib": "3.4.2", "seaborn": "0.11.1", "statannotations": "0.4.4"},
+  "env_vars": {"MPLBACKEND": "Agg", "OMP_NUM_THREADS": "4", "OPENBLAS_NUM_THREADS": "4", "ATTN_CACHE_DIR": "/mnt/d/repro_linux/cache"},
+  "model_params": {"epochs": 125, "lr": 0.01, "alpha": 0.001, "beta": 0.0, "cross_modality_enabled": false},
+  "single_modality": "attention_gate_enabled=False cho đơn nguồn (như notebook gốc)",
+  "radiomics_filter": {"l1_strength": 0.1, "source": "ctx.rad_filters (KHÔNG dùng clean_rad_filters)"},
+  "cv": {"folds": 10, "splitter": "KFold(shuffle=True, random_state=0)", "single_run": "seed 42, thứ tự bệnh nhân tự nhiên (như notebook gốc)", "multi_seed": "SEEDS [42,7,123,2024,31337], hoán vị nhãn mỗi seed (harness chuẩn §0)"},
+  "cohort": "discovery n=247 (62 đáp ứng, 185 không đáp ứng)",
+  "data": "../datasets/*.parquet|csv gốc; MD5 khớp Synapse syn26642505 (xem document/2026-10-12_original-environment/)",
+  "verification": {
+    "script": "experiments/reference_env/verify_ref_env.py",
+    "expected": {"DyAM Rad+IHC-A+Gen+PDL1 (code hiện tại, single-run seed 42)": 0.798256, "author_reference": 0.798169, "tolerance": 1e-05},
+    "also_exact_in_notebook_run": {"LR Rad-PC": 0.639341, "LR Rad-LN": 0.626938, "DyAM Rad": 0.701413, "DyAM Rad+Gen": 0.759285, "DyAM Rad+IHC-A+Gen": 0.754228},
+    "evidence": "experiments/results/notebook_cells_linux_py38.log, experiments/results/ref_env_verify_2026-10-13.log"
+  },
+  "caveats": [
+    "Windows (cùng phiên bản thư viện) cho 0.7879 ở hàng 0.798: số liệu từ hai nền tảng KHÔNG so sánh trực tiếp được",
+    "Các hàng LR dùng saga cuối không đặt seed: không tất định giữa các lần chạy",
+    "Lệch ±0.000087 = một cặp bệnh nhân đổi thứ hạng (62x185 cặp)",
+    "Kết quả cũ trong result/training-results.md §2.x sinh trên Windows (Python 3.13 hoặc doan-env): giữ nguyên, ghi rõ nền tảng khi so sánh",
+    "Cần NLP embedding đã cache (datasets/nlp_clinical_embed.parquet); sentence-transformers KHÔNG có trong môi trường tham chiếu"
+  ]
+}

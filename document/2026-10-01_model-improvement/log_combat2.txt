@@ -1,0 +1,36 @@
+
+============================================================================================
+HƯỚNG 1 — ComBat radiomics
+============================================================================================
+247 62
+   [ComBat] đã hài hoà 1609 đặc trưng radiomics trên 3996 dòng; batch: {'unknown': 212, 'revolution': 69, 'lightspeed': 52}
+tổ hợp                               gốc          ComBat        Δ
+Uncertainty Fold [10] AUC = 0.793 +/- 0.063 95% CL
+Uncertainty Fold [10] AUC = 0.778 +/- 0.066 95% CL
+Uncertainty Fold [10] AUC = 0.776 +/- 0.065 95% CL
+Uncertainty Fold [10] AUC = 0.742 +/- 0.071 95% CL
+Uncertainty Fold [10] AUC = 0.776 +/- 0.067 95% CL
+Uncertainty Fold [10] AUC = 0.757 +/- 0.072 95% CL
+Uncertainty Fold [10] AUC = 0.751 +/- 0.070 95% CL
+Uncertainty Fold [10] AUC = 0.754 +/- 0.069 95% CL
+Uncertainty Fold [10] AUC = 0.723 +/- 0.073 95% CL
+Uncertainty Fold [10] AUC = 0.765 +/- 0.066 95% CL
+Rad+IHC-G+Gen+PDL1      0.7730±0.0190.7501±0.016  -0.0228
+Uncertainty Fold [10] AUC = 0.717 +/- 0.075 95% CL
+Uncertainty Fold [10] AUC = 0.736 +/- 0.069 95% CL
+Uncertainty Fold [10] AUC = 0.716 +/- 0.072 95% CL
+Uncertainty Fold [10] AUC = 0.691 +/- 0.076 95% CL
+Uncertainty Fold [10] AUC = 0.720 +/- 0.070 95% CL
+Uncertainty Fold [10] AUC = 0.692 +/- 0.077 95% CL
+Uncertainty Fold [10] AUC = 0.694 +/- 0.077 95% CL
+Uncertainty Fold [10] AUC = 0.698 +/- 0.078 95% CL
+Uncertainty Fold [10] AUC = 0.649 +/- 0.080 95% CL
+Uncertainty Fold [10] AUC = 0.701 +/- 0.076 95% CL
+Rad+Gen                 0.7160±0.0160.6869±0.022  -0.0291
+   -> đã ghi D:\code\master\doan\code\experiments\results\modelimp.json
+[hướng 1] OK sau 8.7 phút
+
+============================================================================================
+TỔNG KẾT
+============================================================================================
+  hướng 1  OK      8.7 phút  

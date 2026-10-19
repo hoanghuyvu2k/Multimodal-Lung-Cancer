@@ -74,21 +74,21 @@ evaluate them on a discovery cohort of 247 patients with advanced NSCLC
 treated with ICIs.
 First, we introduce an OvO competitive attention variant
 (\texttt{AttentionMatrixOvO}) and compare it against the original cooperative
-attention across 20 modality combinations using 10-fold cross-validation,
-with a confirmatory repeated-seed evaluation (5~seeds~$\times$~10-fold) across
-21 modality combinations to test the reproducibility of any observed
-difference.
+attention across 21 modality combinations using repeated 10-fold cross-validation
+(5~seeds~$\times$~10-fold), without and with the clinical encoding below.
 Second, we convert 13 numeric clinical variables into natural-language
 sentences and encode them with a pretrained sentence transformer
 (MiniLM-L6-v2), comparing this NLP-based representation against raw numeric
 encoding, a domain-specific clinical language model (BioClinBERT), and a
 PCA-compressed variant, evaluated using both binary classification (AUC) and
-survival analysis (Cox regression, time-dependent AUC, Harrell's C-index, and
+survival analysis (Cox regression, Harrell's C-index, and
 Kaplan--Meier stratification).
-Together, these contributions aim to clarify (i) whether competitive
-attention offers a reproducible accuracy advantage over cooperative
-attention in multimodal fusion, or whether the two are functionally
-interchangeable at this sample size, and (ii) whether NLP-based encoding of
-structured clinical data provides a practical, fine-tuning-free improvement
-over conventional numeric representations for both response prediction and
+Because 247 patients are few for hypothesis tests of differences of
+the size at stake, we report the direction and magnitude of differences with the
+number of configurations or partitions favouring each model and interval estimates,
+and we state where they are of the same order as the variability between partitions.
+Together, these contributions aim to show that (i) competitive attention can match or exceed
+cooperative attention in multimodal fusion with fewer parameters, and in which configurations, and (ii) that NLP-based
+encoding of structured clinical data is a practical, fine-tuning-free
+alternative to conventional numeric representations for response prediction and
 survival risk stratification.

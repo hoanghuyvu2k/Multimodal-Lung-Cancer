@@ -1,0 +1,12 @@
+tổ hợp                biến thể                                AUC  ensemble
+Rad+IHC-G+Gen+PDL1    NLP+miss (không aug)                 0.7896    0.7970
+   -> đã ghi D:\code\master\doan\code\experiments\results\final_stack.json
+                      NLP+miss+aug                0.7919±0.011    0.8006
+   -> đã ghi D:\code\master\doan\code\experiments\results\final_stack.json
+                      NLP+miss+aug+TTA            0.7833±0.014    0.7935
+Rad+IHC-G+Gen         NLP+miss (không aug)                 0.7871    0.7956
+   -> đã ghi D:\code\master\doan\code\experiments\results\final_stack.json
+                      NLP+miss+aug                0.7884±0.011    0.7986
+   -> đã ghi D:\code\master\doan\code\experiments\results\final_stack.json
+                      NLP+miss+aug+TTA            0.7844±0.012    0.7935
+XONG

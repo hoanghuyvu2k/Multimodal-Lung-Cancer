@@ -1,0 +1,44 @@
+tổ hợp                biến thể                                       AUC        Δ   ensemble     Δens
+Rad+Gen               uniform_avg                                 0.7160  +0.0000     0.7291  +0.0000
+   -> đã ghi D:\code\master\doan\code\experiments\results\raef.json
+                      R (độ tin cậy)                    0.7008±0.018  -0.0152     0.7225  -0.0066
+   -> đã ghi D:\code\master\doan\code\experiments\results\raef.json
+                      A (sẵn-có)                        0.7178±0.008  +0.0018     0.7282  -0.0009
+   -> đã ghi D:\code\master\doan\code\experiments\results\raef.json
+                      RAEF (R+A)                        0.7175±0.010  +0.0015     0.7306  +0.0015
+Rad+IHC-G+Gen         uniform_avg                                 0.7510  +0.0000     0.7631  +0.0000
+   -> đã ghi D:\code\master\doan\code\experiments\results\raef.json
+                      R (độ tin cậy)                    0.7296±0.016  -0.0214     0.7510  -0.0121
+   -> đã ghi D:\code\master\doan\code\experiments\results\raef.json
+                      A (sẵn-có)                        0.7726±0.006  +0.0216     0.7768  +0.0137
+   -> đã ghi D:\code\master\doan\code\experiments\results\raef.json
+                      RAEF (R+A)                        0.7670±0.014  +0.0160     0.7766  +0.0135
+Rad+IHC-A+Gen+PDL1    uniform_avg                                 0.7547  +0.0000     0.7672  +0.0000
+   -> đã ghi D:\code\master\doan\code\experiments\results\raef.json
+                      R (độ tin cậy)                    0.7090±0.017  -0.0457     0.7269  -0.0403
+   -> đã ghi D:\code\master\doan\code\experiments\results\raef.json
+                      A (sẵn-có)                        0.7563±0.005  +0.0016     0.7605  -0.0067
+   -> đã ghi D:\code\master\doan\code\experiments\results\raef.json
+                      RAEF (R+A)                        0.7542±0.010  -0.0005     0.7622  -0.0050
+Rad+IHC-G+Gen+PDL1    uniform_avg                                 0.7730  +0.0000     0.7838  +0.0000
+   -> đã ghi D:\code\master\doan\code\experiments\results\raef.json
+                      R (độ tin cậy)                    0.7400±0.019  -0.0330     0.7588  -0.0250
+   -> đã ghi D:\code\master\doan\code\experiments\results\raef.json
+                      A (sẵn-có)                        0.7670±0.011  -0.0060     0.7713  -0.0125
+   -> đã ghi D:\code\master\doan\code\experiments\results\raef.json
+                      RAEF (R+A)                        0.7658±0.015  -0.0072     0.7753  -0.0085
+PDL1+Gen              uniform_avg                                 0.7191  +0.0000     0.7241  +0.0000
+   -> đã ghi D:\code\master\doan\code\experiments\results\raef.json
+                      R (độ tin cậy)                    0.7209±0.015  +0.0018     0.7227  -0.0014
+   -> đã ghi D:\code\master\doan\code\experiments\results\raef.json
+                      A (sẵn-có)                        0.7230±0.007  +0.0039     0.7262  +0.0021
+   -> đã ghi D:\code\master\doan\code\experiments\results\raef.json
+                      RAEF (R+A)                        0.7154±0.012  -0.0037     0.7240  -0.0001
+IHC-G+Gen             uniform_avg                                 0.7184  +0.0000     0.7296  +0.0000
+   -> đã ghi D:\code\master\doan\code\experiments\results\raef.json
+                      R (độ tin cậy)                    0.7330±0.010  +0.0146     0.7402  +0.0106
+   -> đã ghi D:\code\master\doan\code\experiments\results\raef.json
+                      A (sẵn-có)                        0.7412±0.007  +0.0228     0.7445  +0.0149
+   -> đã ghi D:\code\master\doan\code\experiments\results\raef.json
+                      RAEF (R+A)                        0.7394±0.007  +0.0210     0.7384  +0.0088
+XONG

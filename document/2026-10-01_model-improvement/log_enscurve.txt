@@ -1,0 +1,7 @@
+   -> đã ghi D:\code\master\doan\code\experiments\results\ensemble_curve.json
+Rad+IHC-G+Gen+PDL1     1 mô hình: 0.7688±0.014 | K=3: 0.7791 K=5: 0.7821 K=10: 0.7841 K=15: 0.7847 K=20: 0.7844
+   -> đã ghi D:\code\master\doan\code\experiments\results\ensemble_curve.json
+Rad+IHC-G+Gen          1 mô hình: 0.7458±0.015 | K=3: 0.7571 K=5: 0.7604 K=10: 0.7626 K=15: 0.7636 K=20: 0.7646
+   -> đã ghi D:\code\master\doan\code\experiments\results\ensemble_curve.json
+Rad+Gen                1 mô hình: 0.7092±0.015 | K=3: 0.7195 K=5: 0.7220 K=10: 0.7241 K=15: 0.7252 K=20: 0.7238
+XONG

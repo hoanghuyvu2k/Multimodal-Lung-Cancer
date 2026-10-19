@@ -1,0 +1,59 @@
+{
+ "rad_lesion_pc": {
+  "raw_columns_in_modality": 1688,
+  "n_patients": 163,
+  "per_fold": [
+   31,
+   26,
+   35,
+   36,
+   28,
+   39,
+   24,
+   45,
+   36,
+   38
+  ],
+  "median": 35.5,
+  "min": 24,
+  "max": 45
+ },
+ "rad_lesion_pl": {
+  "raw_columns_in_modality": 1688,
+  "n_patients": 21,
+  "per_fold": [
+   3,
+   10,
+   13,
+   6,
+   12,
+   1,
+   6,
+   7,
+   8,
+   12
+  ],
+  "median": 7.5,
+  "min": 1,
+  "max": 13
+ },
+ "rad_lesion_ln": {
+  "raw_columns_in_modality": 1688,
+  "n_patients": 67,
+  "per_fold": [
+   29,
+   22,
+   26,
+   26,
+   27,
+   21,
+   21,
+   41,
+   22,
+   24
+  ],
+  "median": 25.0,
+  "min": 21,
+  "max": 41
+ }
+}

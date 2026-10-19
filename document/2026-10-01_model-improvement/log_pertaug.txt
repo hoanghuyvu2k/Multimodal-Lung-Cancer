@@ -1,0 +1,23 @@
+bệnh nhân có đủ 10 bản nhiễu loạn: {'rad_lesion_pc': 163, 'rad_lesion_pl': 21, 'rad_lesion_ln': 67}
+tổ hợp                biến thể                          AUC        Δ  ensemble        Δ
+Rad+IHC-G+Gen+PDL1    uniform_avg                    0.7730  +0.0000    0.7838  +0.0000
+   -> đã ghi D:\code\master\doan\code\experiments\results\pertaug.json
+                      aug                   0.7785±0.017  +0.0055    0.7895  +0.0057
+   -> đã ghi D:\code\master\doan\code\experiments\results\pertaug.json
+                      aug+TTA               0.7755±0.018  +0.0025    0.7858  +0.0020
+Rad+IHC-G+Gen         uniform_avg                    0.7510  +0.0000    0.7631  +0.0000
+   -> đã ghi D:\code\master\doan\code\experiments\results\pertaug.json
+                      aug                   0.7512±0.016  +0.0002    0.7657  +0.0026
+   -> đã ghi D:\code\master\doan\code\experiments\results\pertaug.json
+                      aug+TTA               0.7526±0.017  +0.0016    0.7633  +0.0002
+Rad+Gen               uniform_avg                    0.7160  +0.0000    0.7291  +0.0000
+   -> đã ghi D:\code\master\doan\code\experiments\results\pertaug.json
+                      aug                   0.7159±0.016  -0.0001    0.7313  +0.0022
+   -> đã ghi D:\code\master\doan\code\experiments\results\pertaug.json
+                      aug+TTA               0.7164±0.020  +0.0004    0.7298  +0.0007
+Rad                   uniform_avg                    0.6661  +0.0000    0.6925  +0.0000
+   -> đã ghi D:\code\master\doan\code\experiments\results\pertaug.json
+                      aug                   0.6799±0.026  +0.0138    0.6938  +0.0013
+   -> đã ghi D:\code\master\doan\code\experiments\results\pertaug.json
+                      aug+TTA               0.6776±0.013  +0.0115    0.6935  +0.0010
+XONG

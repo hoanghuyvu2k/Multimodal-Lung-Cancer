@@ -1,0 +1,462 @@
+{
+ "A_per_seed": {
+  "IHC-A": {
+   "per_variant": {
+    "no_clinical": {
+     "c": [
+      0.6156,
+      0.6066,
+      0.6063,
+      0.6138,
+      0.6143
+     ],
+     "logHR": [
+      0.4252,
+      0.4022,
+      0.3743,
+      0.4469,
+      0.4437
+     ]
+    },
+    "labs": {
+     "c": [
+      0.6204,
+      0.6065,
+      0.6194,
+      0.6098,
+      0.6221
+     ],
+     "logHR": [
+      0.4391,
+      0.408,
+      0.453,
+      0.3887,
+      0.441
+     ]
+    },
+    "nlp_raw": {
+     "c": [
+      0.619,
+      0.5992,
+      0.6084,
+      0.6016,
+      0.6107
+     ],
+     "logHR": [
+      0.5118,
+      0.4725,
+      0.4732,
+      0.4271,
+      0.4736
+     ]
+    },
+    "nlppca16": {
+     "c": [
+      0.6223,
+      0.5962,
+      0.6053,
+      0.603,
+      0.6119
+     ],
+     "logHR": [
+      0.5248,
+      0.4527,
+      0.4667,
+      0.429,
+      0.4696
+     ]
+    }
+   },
+   "diff": {
+    "nlp_raw-no_clinical:c": {
+     "mean": -0.0035,
+     "sd": 0.0065,
+     "n_pos": 2,
+     "of": 5
+    },
+    "nlp_raw-no_clinical:logHR": {
+     "mean": 0.0532,
+     "sd": 0.0484,
+     "n_pos": 4,
+     "of": 5
+    },
+    "nlppca16-no_clinical:c": {
+     "mean": -0.0036,
+     "sd": 0.0073,
+     "n_pos": 1,
+     "of": 5
+    },
+    "nlppca16-no_clinical:logHR": {
+     "mean": 0.0501,
+     "sd": 0.0486,
+     "n_pos": 4,
+     "of": 5
+    },
+    "nlp_raw-labs:c": {
+     "mean": -0.0079,
+     "sd": 0.004,
+     "n_pos": 0,
+     "of": 5
+    },
+    "nlp_raw-labs:logHR": {
+     "mean": 0.0457,
+     "sd": 0.0221,
+     "n_pos": 5,
+     "of": 5
+    },
+    "nlppca16-labs:c": {
+     "mean": -0.0079,
+     "sd": 0.0061,
+     "n_pos": 1,
+     "of": 5
+    },
+    "nlppca16-labs:logHR": {
+     "mean": 0.0426,
+     "sd": 0.0269,
+     "n_pos": 5,
+     "of": 5
+    }
+   }
+  },
+  "IHC-G": {
+   "per_variant": {
+    "no_clinical": {
+     "c": [
+      0.6227,
+      0.6237,
+      0.6077,
+      0.6155,
+      0.6202
+     ],
+     "logHR": [
+      0.4217,
+      0.4312,
+      0.39,
+      0.4332,
+      0.4378
+     ]
+    },
+    "labs": {
+     "c": [
+      0.6436,
+      0.6196,
+      0.6233,
+      0.6143,
+      0.6278
+     ],
+     "logHR": [
+      0.4882,
+      0.4053,
+      0.4309,
+      0.3832,
+      0.4391
+     ]
+    },
+    "nlp_raw": {
+     "c": [
+      0.6393,
+      0.6171,
+      0.6116,
+      0.6025,
+      0.6235
+     ],
+     "logHR": [
+      0.5341,
+      0.4839,
+      0.4351,
+      0.4095,
+      0.5013
+     ]
+    },
+    "nlppca16": {
+     "c": [
+      0.6362,
+      0.6182,
+      0.6124,
+      0.605,
+      0.6232
+     ],
+     "logHR": [
+      0.5318,
+      0.4804,
+      0.4425,
+      0.4165,
+      0.4928
+     ]
+    }
+   },
+   "diff": {
+    "nlp_raw-no_clinical:c": {
+     "mean": 0.0008,
+     "sd": 0.0113,
+     "n_pos": 3,
+     "of": 5
+    },
+    "nlp_raw-no_clinical:logHR": {
+     "mean": 0.05,
+     "sd": 0.0488,
+     "n_pos": 4,
+     "of": 5
+    },
+    "nlppca16-no_clinical:c": {
+     "mean": 0.001,
+     "sd": 0.0093,
+     "n_pos": 3,
+     "of": 5
+    },
+    "nlppca16-no_clinical:logHR": {
+     "mean": 0.05,
+     "sd": 0.045,
+     "n_pos": 4,
+     "of": 5
+    },
+    "nlp_raw-labs:c": {
+     "mean": -0.0069,
+     "sd": 0.0045,
+     "n_pos": 0,
+     "of": 5
+    },
+    "nlp_raw-labs:logHR": {
+     "mean": 0.0434,
+     "sd": 0.0293,
+     "n_pos": 5,
+     "of": 5
+    },
+    "nlppca16-labs:c": {
+     "mean": -0.0067,
+     "sd": 0.0038,
+     "n_pos": 0,
+     "of": 5
+    },
+    "nlppca16-labs:logHR": {
+     "mean": 0.0434,
+     "sd": 0.0235,
+     "n_pos": 5,
+     "of": 5
+    }
+   }
+  }
+ },
+ "B_bootstrap": {
+  "IHC-A": {
+   "nlp_raw-no_clinical": {
+    "dC": -0.0068,
+    "dC_ci": [
+     -0.0199,
+     0.0071
+    ],
+    "dC_pos_frac": 0.168,
+    "dlogHR": 0.0413,
+    "dlogHR_ci": [
+     -0.0246,
+     0.1127
+    ],
+    "dlogHR_pos_frac": 0.892,
+    "n_boot": 1000
+   },
+   "nlppca16-no_clinical": {
+    "dC": -0.007,
+    "dC_ci": [
+     -0.0217,
+     0.0062
+    ],
+    "dC_pos_frac": 0.158,
+    "dlogHR": 0.039,
+    "dlogHR_ci": [
+     -0.0212,
+     0.1028
+    ],
+    "dlogHR_pos_frac": 0.898,
+    "n_boot": 1000
+   },
+   "nlp_raw-labs": {
+    "dC": -0.0087,
+    "dC_ci": [
+     -0.0244,
+     0.0055
+    ],
+    "dC_pos_frac": 0.114,
+    "dlogHR": 0.05,
+    "dlogHR_ci": [
+     -0.0017,
+     0.1053
+    ],
+    "dlogHR_pos_frac": 0.968,
+    "n_boot": 1000
+   },
+   "nlppca16-labs": {
+    "dC": -0.0089,
+    "dC_ci": [
+     -0.0235,
+     0.0051
+    ],
+    "dC_pos_frac": 0.108,
+    "dlogHR": 0.0477,
+    "dlogHR_ci": [
+     -0.0066,
+     0.103
+    ],
+    "dlogHR_pos_frac": 0.959,
+    "n_boot": 1000
+   }
+  },
+  "IHC-G": {
+   "nlp_raw-no_clinical": {
+    "dC": 0.0008,
+    "dC_ci": [
+     -0.0127,
+     0.0135
+    ],
+    "dC_pos_frac": 0.512,
+    "dlogHR": 0.0456,
+    "dlogHR_ci": [
+     -0.0024,
+     0.0907
+    ],
+    "dlogHR_pos_frac": 0.965,
+    "n_boot": 1000
+   },
+   "nlppca16-no_clinical": {
+    "dC": 0.0016,
+    "dC_ci": [
+     -0.009,
+     0.0125
+    ],
+    "dC_pos_frac": 0.624,
+    "dlogHR": 0.0428,
+    "dlogHR_ci": [
+     -0.0036,
+     0.0888
+    ],
+    "dlogHR_pos_frac": 0.961,
+    "n_boot": 1000
+   },
+   "nlp_raw-labs": {
+    "dC": -0.008,
+    "dC_ci": [
+     -0.0215,
+     0.0071
+    ],
+    "dC_pos_frac": 0.148,
+    "dlogHR": 0.0521,
+    "dlogHR_ci": [
+     -0.0026,
+     0.1187
+    ],
+    "dlogHR_pos_frac": 0.968,
+    "n_boot": 1000
+   },
+   "nlppca16-labs": {
+    "dC": -0.0072,
+    "dC_ci": [
+     -0.0215,
+     0.0074
+    ],
+    "dC_pos_frac": 0.164,
+    "dlogHR": 0.0493,
+    "dlogHR_ci": [
+     -0.0054,
+     0.1073
+    ],
+    "dlogHR_pos_frac": 0.965,
+    "n_boot": 1000
+   }
+  }
+ },
+ "C_incremental": {
+  "IHC-A": {
+   "nlp_raw": {
+    "add_nlp_to_noclin": {
+     "LR": 3.799,
+     "p": 0.0513,
+     "coef": 0.432
+    },
+    "add_noclin_to_nlp": {
+     "LR": 0.164,
+     "p": 0.6856,
+     "coef": 0.088
+    },
+    "corr_scores": 0.947
+   },
+   "nlppca16": {
+    "add_nlp_to_noclin": {
+     "LR": 3.461,
+     "p": 0.0628,
+     "coef": 0.431
+    },
+    "add_noclin_to_nlp": {
+     "LR": 0.145,
+     "p": 0.7038,
+     "coef": 0.086
+    },
+    "corr_scores": 0.952
+   }
+  },
+  "IHC-G": {
+   "nlp_raw": {
+    "add_nlp_to_noclin": {
+     "LR": 6.324,
+     "p": 0.0119,
+     "coef": 0.702
+    },
+    "add_noclin_to_nlp": {
+     "LR": 0.497,
+     "p": 0.4807,
+     "coef": -0.191
+    },
+    "corr_scores": 0.967
+   },
+   "nlppca16": {
+    "add_nlp_to_noclin": {
+     "LR": 6.002,
+     "p": 0.0143,
+     "coef": 0.735
+    },
+    "add_noclin_to_nlp": {
+     "LR": 0.596,
+     "p": 0.4403,
+     "coef": -0.226
+    },
+    "corr_scores": 0.972
+   }
+  }
+ },
+ "D_direct_oof_cindex": {
+  "labs_numeric(13)|pen=0.1": {
+   "mean": 0.6484,
+   "sd": 0.0045
+  },
+  "labs_numeric(13)|pen=1.0": {
+   "mean": 0.6482,
+   "sd": 0.0037
+  },
+  "labs_numeric(13)|pen=10.0": {
+   "mean": 0.6472,
+   "sd": 0.0038
+  },
+  "nlp_pca16|pen=0.1": {
+   "mean": 0.5721,
+   "sd": 0.0058
+  },
+  "nlp_pca16|pen=1.0": {
+   "mean": 0.5716,
+   "sd": 0.0062
+  },
+  "nlp_pca16|pen=10.0": {
+   "mean": 0.5716,
+   "sd": 0.007
+  },
+  "nlp_raw(384)|pen=0.1": {
+   "mean": 0.5596,
+   "sd": 0.0017
+  },
+  "nlp_raw(384)|pen=1.0": {
+   "mean": 0.5588,
+   "sd": 0.002
+  },
+  "nlp_raw(384)|pen=10.0": {
+   "mean": 0.5578,
+   "sd": 0.0023
+  }
+ }
+}

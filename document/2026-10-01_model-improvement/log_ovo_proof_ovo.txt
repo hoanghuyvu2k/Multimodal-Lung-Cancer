@@ -1,0 +1,12 @@
+[ovo] Rad+IHC-A+Gen: 20/20 seed
+[ovo] Rad+IHC-A+Gen: 20/20 seed
+[ovo] Rad+IHC-G+Gen: 20/20 seed
+[ovo] Rad+IHC-A+MutAmp: 20/20 seed
+[ovo] Rad+IHC-A+Gen+PDL1: 20/20 seed
+[ovo] Rad+IHC-A+Gen: 20/20 seed
+[ovo] Rad+IHC-G+Gen: 20/20 seed
+[ovo] Rad+IHC-A+MutAmp: 20/20 seed
+[ovo] Rad+IHC-A+Gen+PDL1: 20/20 seed
+[ovo] Rad+IHC-G+Gen+PDL1: 20/20 seed
+[ovo] Rad+IHC-A+Gen+TMB+PDL1: 20/20 seed
+XONG

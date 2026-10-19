@@ -1,3 +1,4 @@
+import os
 # -*- coding: utf-8 -*-
 """Build a plain Word (.docx) version of the manuscript, independent of the
 MDPI LaTeX template. Basic scientific-paper structure: Title / Authors /
@@ -12,8 +13,8 @@ Quy trình (xem thêm CLAUDE.md mục "Word manuscript export rule"):
 3. Công thức toán dùng OMML (builder nhúng ngay trong file, namespace `m`) —
    display qua add_equation(), inline giữa text qua P_mix(..., IM(...), ...).
 4. Chạy:  python paper/word_export/build_manuscript_docx.py
-   Output: paper/manuscript_word.docx (nếu file đang mở trong Word sẽ bị
-   khoá — script tự fallback sang manuscript_word_v2.docx, v3, ...).
+   Output: paper/manuscript_word_5seed_YYYYMMDD_HHMM.docx (nếu file đang mở trong Word sẽ bị
+   khoá — script tự fallback sang manuscript_word_5seed_v2.docx, v3, ...).
 """
 import re
 import types
@@ -227,7 +228,10 @@ m = types.SimpleNamespace(
 
 _HERE = Path(__file__).resolve().parent
 PAPER_DIR = _HERE.parent
-OUT_PATH = str(PAPER_DIR / "manuscript_word.docx")
+import datetime as _dt, shutil as _sh
+_TAG = "5seed"
+# every build gets a new name with date and time; earlier versions move to word_archive/
+OUT_PATH = str(PAPER_DIR / f"manuscript_word_{_TAG}_{_dt.datetime.now():%Y%m%d_%H%M}.docx")
 FIGDIR = str(PAPER_DIR / "figures")
 FIGDIR_CONV = str(PAPER_DIR / "figures" / "converted")
 
@@ -272,7 +276,104 @@ def add_markup(paragraph, text):
             r = paragraph.add_run(chunk[2:-1])
             r.font.subscript = True
         else:
-            paragraph.add_run(chunk)
+            _add_text_with_cites(paragraph, chunk)
+
+
+def _add_ref_link(paragraph, num):
+    """Internal hyperlink to the bookmark of reference <num> (Ctrl+click in Word)."""
+    h = OxmlElement("w:hyperlink")
+    h.set(qn("w:anchor"), f"ref_{num}")
+    h.set(qn("w:history"), "1")
+    r = OxmlElement("w:r")
+    rpr = OxmlElement("w:rPr")
+    col = OxmlElement("w:color")
+    col.set(qn("w:val"), "0563C1")
+    rpr.append(col)
+    r.append(rpr)
+    t = OxmlElement("w:t")
+    t.text = str(num)
+    r.append(t)
+    h.append(r)
+    paragraph._p.append(h)
+
+
+CITE_RE = re.compile(r"\[(\d+(?:\s*[,\u2013-]\s*\d+)*)\]")
+
+
+def _add_text_with_cites(paragraph, chunk):
+    pos = 0
+    for m in CITE_RE.finditer(chunk):
+        if m.start() > pos:
+            paragraph.add_run(chunk[pos:m.start()])
+        paragraph.add_run("[")
+        for part in re.split(r"(\s*[,\u2013-]\s*)", m.group(1)):
+            if part.strip().isdigit():
+                _add_ref_link(paragraph, int(part))
+            elif part:
+                paragraph.add_run(part)
+        paragraph.add_run("]")
+        pos = m.end()
+    if pos < len(chunk):
+        paragraph.add_run(chunk[pos:])
+
+
+def _add_bookmark(paragraph, name, bid):
+    s = OxmlElement("w:bookmarkStart")
+    s.set(qn("w:id"), str(bid))
+    s.set(qn("w:name"), name)
+    e = OxmlElement("w:bookmarkEnd")
+    e.set(qn("w:id"), str(bid))
+    paragraph._p.insert(0, s) if paragraph._p.pPr is None else paragraph._p.pPr.addnext(s)
+    s.addnext(e)
+
+
+_EXTRA_URL = {
+    "MiniLM: Deep Self-Attention": "https://arxiv.org/abs/2002.10957",
+    "Attention Is All You Need": "https://arxiv.org/abs/1706.03762",
+    "In Defense of One-Vs-All": "https://www.jmlr.org/papers/v5/rifkin04a.html",
+}
+
+
+def _add_external_link(paragraph, url, text):
+    from docx.opc.constants import RELATIONSHIP_TYPE as RT
+    rid = paragraph.part.relate_to(url, RT.HYPERLINK, is_external=True)
+    h = OxmlElement("w:hyperlink")
+    h.set(qn("r:id"), rid)
+    h.set(qn("w:history"), "1")
+    r = OxmlElement("w:r")
+    rpr = OxmlElement("w:rPr")
+    col = OxmlElement("w:color")
+    col.set(qn("w:val"), "0563C1")
+    u = OxmlElement("w:u")
+    u.set(qn("w:val"), "single")
+    rpr.append(col)
+    rpr.append(u)
+    sz = OxmlElement("w:sz")
+    sz.set(qn("w:val"), "20")
+    rpr.append(sz)
+    r.append(rpr)
+    t = OxmlElement("w:t")
+    t.text = text
+    r.append(t)
+    h.append(r)
+    paragraph._p.append(h)
+
+
+def _add_ref_text_online(paragraph, ref):
+    """Reference text; the DOI (or a known URL) becomes a clickable online link."""
+    from urllib.parse import quote
+    m = re.search(r"doi:(\S+)$", ref.strip())
+    if m:
+        add_markup(paragraph, ref[:ref.rindex("doi:")])
+        doi = m.group(1)
+        _add_external_link(paragraph, "https://doi.org/" + quote(doi, safe="/:()-._;"), "doi:" + doi)
+        return
+    add_markup(paragraph, ref)
+    for key, url in _EXTRA_URL.items():
+        if key in ref:
+            paragraph.add_run(" ")
+            _add_external_link(paragraph, url, url)
+            return
 
 
 def P(text="", style=None, align=None, space_before=None, space_after=None):
@@ -331,6 +432,28 @@ def add_table(headers, rows, caption=None, col_widths=None):
             set_cell_text(cells[i], str(val), align=align)
     doc.add_paragraph().paragraph_format.space_after = Pt(4)
     return t
+
+
+import re as _re
+
+
+def tex_rows(name):
+    """Rows of a generated paper/tables/<name>.tex (between midrule and bottomrule) as lists of cell strings."""
+    txt = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tables", name + ".tex"), encoding="utf-8").read()
+    body = txt.split(r"\midrule", 1)[1].split(r"\bottomrule")[0]
+    out = []
+    for line in body.split("\n"):
+        line = line.strip()
+        if not line.endswith(r"\\"):
+            continue
+        cells = []
+        for c in line[:-2].split("&"):
+            c = _re.sub(r"\\textbf\{([^}]*)\}", r"**\1**", c.strip())
+            c = c.replace("$", "").replace(r"\pm", "±")
+            c = _re.sub(r"(?<![\w.])-(?=\d)", "−", c)
+            cells.append(c.strip())
+        out.append(cells)
+    return out
 
 
 def page_break():
@@ -401,6 +524,290 @@ def add_figure(path, caption, width_in=6.0):
     _fill_mixed(cap, parts, font_size=9.5)
 
 
+# ==================================================================================================
+# LaTeX -> Word renderer for the single-partition draft (reads ../sections/*.tex, ../tables/*.tex, ../main.tex)
+# ==================================================================================================
+import re as _re
+import subprocess as _sp
+
+_TEXDIR = PAPER_DIR
+_REFS = {}          # label -> number string
+_BIB = {}           # cite key -> number
+_FIGNO = [3]        # figures 1-3 are in the methods
+_TABNO = [2]        # tables 1-2 are in the methods
+
+
+def _read(p):
+    return open(str(p), encoding="utf-8").read().replace("\r\n", "\n")
+
+
+def _balanced(s, i):
+    """s[i] == '{' -> (content, index after the closing brace)"""
+    depth, j = 0, i
+    while j < len(s):
+        if s[j] == "{":
+            depth += 1
+        elif s[j] == "}":
+            depth -= 1
+            if depth == 0:
+                return s[i + 1:j], j + 1
+        j += 1
+    raise ValueError("unbalanced")
+
+
+def _strip_comments(s):
+    return "\n".join(_re.sub(r"(?<!\\)%.*$", "", l) for l in s.split("\n"))
+
+
+def _bib_numbers():
+    bbl = _read(_TEXDIR / "main.bbl")
+    for n, m in enumerate(_re.finditer(r"\\bibitem(?:\[[^\]]*\])?\{([^}]+)\}", bbl), 1):
+        _BIB[m.group(1)] = n
+
+
+def _assign_labels(texts):
+    """Numbers for \\label{sec:..}, tab:.., fig:.. in order of appearance across the given section texts."""
+    sec = [0, 0]
+    for kind, txt in texts:
+        sec[0] = {"results": 3, "discussion": 4, "conclusion": 5}[kind]
+        sec[1] = 0
+        pos = 0
+        for m in _re.finditer(r"\\subsection\{|\\begin\{table\}|\\begin\{figure\}|\\input\{tables/([^}]+)\}|\\label\{([^}]+)\}", txt):
+            t = m.group(0)
+            if t.startswith("\\subsection"):
+                sec[1] += 1
+                pend = ("sec", f"{sec[0]}.{sec[1]}")
+                lm = _re.search(r"\\label\{([^}]+)\}", txt[m.end():m.end() + 2000])
+                # label that follows the subsection title
+                j = m.end() - 1
+                _, k = _balanced(txt, j)
+                lm = _re.match(r"\s*\\label\{([^}]+)\}", txt[k:])
+                if lm:
+                    _REFS[lm.group(1)] = pend[1]
+            elif t.startswith("\\input"):
+                tex = _strip_comments(_read(_TEXDIR / "tables" / (m.group(1) + ".tex")))
+                if "\\begin{table}" in tex:
+                    _TABNO[0] += 1
+                    lm = _re.search(r"\\label\{([^}]+)\}", tex)
+                    if lm:
+                        _REFS[lm.group(1)] = str(_TABNO[0])
+            elif t.startswith("\\begin{table}"):
+                _TABNO[0] += 1
+                e = txt.index("\\end{table}", m.end())
+                lm = _re.search(r"\\label\{([^}]+)\}", txt[m.end():e])
+                if lm:
+                    _REFS[lm.group(1)] = str(_TABNO[0])
+            elif t.startswith("\\begin{figure}"):
+                _FIGNO[0] += 1
+                e = txt.index("\\end{figure}", m.end())
+                body = txt[m.end():e]
+                for lm in _re.finditer(r"\\label\{(fig:[^}]+)\}", body):
+                    if lm.group(1) not in _REFS:
+                        _REFS[lm.group(1)] = str(_FIGNO[0])
+    _TABNO[0], _FIGNO[0] = 2, 3
+
+
+_MATH = [(r"\\pm", "±"), (r"\\Delta", "Δ"), (r"\\times", "×"), (r"\\geq", "≥"), (r"\\leq", "≤"), (r"\\approx", "≈"),
+         (r"\\rightarrow", "→"), (r"\\chi\^2", "χ²"), (r"\\chi", "χ"), (r"\\sim", "~"), (r"\\le(?![a-z])", "≤"), (r"\\ge(?![a-z])", "≥"),
+         (r"\\%", "%"), (r"\\,", " "), (r"\\;", " "), (r"\\!", "")]
+
+
+def _math(m):
+    t = m.group(1)
+    t = _re.sub(r"\\text\{([^}]*)\}", r"\1", t)
+    for a, b in _MATH:
+        t = _re.sub(a, b, t)
+    t = t.replace("^2", "²").replace("{", "").replace("}", "")
+    t = _re.sub(r"(?<![\w.])-(?=\d)", "−", t)
+    t = _re.sub(r"\s*=\s*", " = ", t) if "Δ" in t else t
+    return t
+
+
+def _clean(t):
+    """LaTeX inline text -> Word markup text."""
+    t = _re.sub(r"\\(?:cite[a-z]*)\{([^}]*)\}", lambda m: "[" + ",".join(str(_BIB.get(k.strip(), "?")) for k in m.group(1).split(",")) + "]", t)
+    t = _re.sub(r"\\label\{[^}]*\}", "", t)
+    t = _re.sub(r"\\ref\{([^}]*)\}", lambda m: _REFS.get(m.group(1), "?"), t)
+    t = _re.sub(r"\$([^$]*)\$", _math, t)
+    t = _re.sub(r"\\textbf\{([^{}]*)\}", r"**\1**", t)
+    t = _re.sub(r"\\(?:emph|textit)\{([^{}]*)\}", r"\1", t)
+    t = _re.sub(r"\\(?:texttt|text|mbox)\{([^{}]*)\}", r"\1", t)
+    t = _re.sub(r"\\boldmath\{([^{}]*)\}", r"\1", t)
+    t = t.replace("\\#", "#").replace("\\%", "%").replace("\\&", "&").replace("\\_", "_").replace("{,}", ",").replace("\\ ", " ").replace("\\@", "")
+    t = t.replace("---", "—").replace("--", "–").replace("``", "“").replace("''", "”").replace("~", " ")
+    t = _re.sub(r"\\[a-zA-Z]+\*?", "", t) if False else t
+    t = _re.sub(r"[ \t]*\n[ \t]*", " ", t)
+    t = _re.sub(r" {2,}", " ", t)
+    return t.strip()
+
+
+def _table(tex):
+    """\\begin{table}...\\end{table} text -> add_table(...) call."""
+    cap_i = tex.index("\\caption{")
+    cap, _ = _balanced(tex, cap_i + len("\\caption"))
+    _TABNO[0] += 1
+    n = _TABNO[0]
+    caption = f"**Table {n}.** " + _clean(cap)
+    a = tex.index("\\begin{tabular}")
+    body = tex[a:tex.index("\\end{tabular}")]
+    body = _re.sub(r"\\begin\{tabular\}(\{[^\n]*\})", "", body, count=1) if False else body
+    body = body.split("\n", 1)[1] if body.startswith("\\begin{tabular}") else body
+    # tabular spec may contain braces on the same line (p{..}); drop first line only when it is the spec
+    lines = [l.strip() for l in body.split("\n")]
+    top = next(i for i, l in enumerate(lines) if l.startswith("\\toprule"))
+    mid = next(i for i, l in enumerate(lines) if l.startswith("\\midrule"))
+    hdr_lines = [l for l in lines[top + 1:mid] if l and not l.startswith("\\cmidrule")]
+    rows = []
+    for l in lines[mid + 1:]:
+        if l.startswith("\\bottomrule"):
+            break
+        if not l or l.startswith("\\midrule") or l.startswith("\\cmidrule"):
+            continue
+        rows.append(l)
+
+    def split_row(l):
+        l = l.rstrip()
+        if l.endswith("\\\\"):
+            l = l[:-2]
+        cells, depth, cur = [], 0, ""
+        for ch in l:
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+            if ch == "&" and depth == 0:
+                cells.append(cur); cur = ""
+            else:
+                cur += ch
+        cells.append(cur)
+        return [c.strip() for c in cells]
+
+    def expand(cells):
+        out = []
+        for c in cells:
+            m = _re.match(r"\\multicolumn\{(\d+)\}\{[^}]*\}\{(.*)\}$", c, _re.S)
+            if m:
+                out += [m.group(2)] + [""] * (int(m.group(1)) - 1)
+            else:
+                out.append(c)
+        return out
+
+    H = [expand(split_row(l)) for l in hdr_lines]
+    header = H[0]
+    if len(H) == 2:
+        header, cur = [], ""
+        for g, s2 in zip(H[0], H[1]):
+            cur = g or cur
+            header.append((cur + " " + s2).strip() if (g or (cur and s2 and header and header[-1] != "")) and cur and s2 else (s2 or g))
+    nrow = []
+    for l in rows:
+        cs = split_row(l)
+        if len(cs) == 1 and "\\multicolumn" in cs[0]:
+            cs = expand(cs)
+            cs = [cs[0]] + [""] * (len(header) - 1)
+        cs = [_clean(c) for c in expand(cs)] if len(cs) > 1 else [_clean(c) for c in cs]
+        cs = (cs + [""] * len(header))[:len(header)]
+        nrow.append(cs)
+    header = [_clean(h) for h in header]
+    add_table(header, nrow, caption=caption)
+
+
+def _figure(tex):
+    cap_i = tex.index("\\caption{")
+    cap, _ = _balanced(tex, cap_i + len("\\caption"))
+    _FIGNO[0] += 1
+    n = _FIGNO[0]
+    panels = []
+    for m in _re.finditer(r"\\subfloat\[", tex):
+        j = m.end() - 1
+        # title in [...] possibly containing \label{..}
+        depth, k = 0, j
+        while True:
+            if tex[k] == "[":
+                depth += 1
+            elif tex[k] == "]":
+                depth -= 1
+                if depth == 0:
+                    break
+            k += 1
+        title = _clean(_re.sub(r"\\label\{[^}]*\}", "", tex[j + 1:k]))
+        im = _re.search(r"\\includegraphics\[[^\]]*\]\{([^}]+)\}", tex[k:])
+        panels.append((title, im.group(1)))
+    if not panels:
+        for im in _re.finditer(r"\\includegraphics\[[^\]]*\]\{([^}]+)\}", tex):
+            panels.append(("", im.group(1)))
+    for idx, (title, path) in enumerate(panels):
+        png = os.path.join(FIGDIR_CONV, os.path.basename(path).replace(".pdf", ".png"))
+        if True:                      # always re-render from the PDF so that no stale PNG (e.g. copied from the multi-seed paper) is used
+            _sp.run(["pdftocairo", "-png", "-r", "200", "-singlefile", os.path.join(str(PAPER_DIR), path),
+                     png[:-4]], check=True)
+        label = f"**Figure {n}{'ABCDEFGH'[idx]}.** {title}" if len(panels) > 1 else ""
+        last = idx == len(panels) - 1
+        cap_txt = _clean(cap)
+        if len(panels) == 1:
+            add_figure(png, f"**Figure {n}.** {cap_txt}", width_in=5.0)
+        else:
+            add_figure(png, label + ("" if not last else f" **Figure {n}.** {cap_txt}"), width_in=4.2)
+
+
+def render_tex(kind):
+    txt = _strip_comments(_read(_TEXDIR / "sections" / f"{kind}.tex"))
+    txt = _re.sub(r"\\section\{[^}]*\}\s*(\\label\{[^}]*\})?", "", txt)
+    sub = [0]
+    secno = {"results": 3, "discussion": 4, "conclusion": 5}[kind]
+    # split into blocks at environments / commands
+    pos, buf = 0, []
+
+    def flush(text):
+        text = text.strip()
+        if not text:
+            return
+        for para in _re.split(r"\n\s*\n", text):
+            para = para.strip()
+            if not para:
+                continue
+            m = _re.match(r"\\paragraph\{([^}]*)\}\s*(.*)$", para, _re.S)
+            if m:
+                P(f"**{_clean(m.group(1))}** " + _clean(m.group(2)))
+            else:
+                P(_clean(para))
+
+    pat = _re.compile(r"\\subsection\{|\\begin\{table\}|\\begin\{figure\}|\\input\{tables/([^}]+)\}")
+    while True:
+        m = pat.search(txt, pos)
+        if not m:
+            flush(txt[pos:])
+            break
+        flush(txt[pos:m.start()])
+        t = m.group(0)
+        if t.startswith("\\subsection"):
+            title, k = _balanced(txt, m.end() - 1)
+            sub[0] += 1
+            H(f"{secno}.{sub[0]}. {_clean(title)}", level=2)
+            pos = k
+            lm = _re.match(r"\s*\\label\{[^}]*\}", txt[pos:])
+            if lm:
+                pos += lm.end()
+        elif t.startswith("\\begin{table}"):
+            e = txt.index("\\end{table}", m.end()) + len("\\end{table}")
+            _table(txt[m.start():e]); pos = e
+        elif t.startswith("\\begin{figure}"):
+            e = txt.index("\\end{figure}", m.end()) + len("\\end{figure}")
+            _figure(txt[m.start():e]); pos = e
+        else:
+            tex = _strip_comments(_read(_TEXDIR / "tables" / (m.group(1) + ".tex")))
+            if "\\begin{table}" in tex:
+                _table(tex)
+            pos = m.end()
+
+
+def abstract_text():
+    s = _strip_comments(_read(_TEXDIR / "main.tex"))
+    i = s.index("\\abstract{")
+    body, _ = _balanced(s, i + len("\\abstract"))
+    return _clean(body)
+
+
 # ==================================================== TITLE / FRONT MATTER =
 title_p = doc.add_paragraph()
 title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -414,15 +821,14 @@ title_p.paragraph_format.space_after = Pt(12)
 
 auth_p = doc.add_paragraph()
 auth_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-add_markup(auth_p, "First Author^{1,\u2020}, Second Author^{2}, Third Author^{1,*}")
+add_markup(auth_p, "V\u0169 Huy Ho\u00e0ng^{1,*}")
 auth_p.paragraph_format.space_after = Pt(4)
 
 aff_p = doc.add_paragraph()
 aff_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
 add_markup(
     aff_p,
-    "^{1}Department of [Department], [University], [City], [Country]; "
-    "^{2}Department of [Department], [University], [City], [Country]"
+    "^{1}Master's student (Student ID 20242052M), School of Information and Communication Technology, Hanoi University of Science and Technology, Hanoi, Vietnam"
 )
 for r in aff_p.runs:
     r.font.size = Pt(9.5)
@@ -430,37 +836,14 @@ aff_p.paragraph_format.space_after = Pt(2)
 
 corr_p = doc.add_paragraph()
 corr_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-add_markup(corr_p, "**Correspondence:** third@email.com  |  ^{\u2020}These authors contributed equally to this work.")
+add_markup(corr_p, "**Correspondence:** Hoang.VH242052M@sis.hust.edu.vn; Tel.: +84-327-633-274")
 for r in corr_p.runs:
     r.font.size = Pt(9.5)
 corr_p.paragraph_format.space_after = Pt(16)
 
 # ---------------------------------------------------------------- abstract -
 H("Abstract", level=2)
-P(
-    "Predicting response to immune checkpoint inhibitors (ICIs) in non-small "
-    "cell lung cancer (NSCLC) remains challenging, as established biomarkers "
-    "such as PD-L1 expression provide only modest discrimination. We extended "
-    "the Dynamic Attention Multimodal (DyAM) fusion framework, which combines "
-    "CT radiomics, pathology, genomics, PD-L1, and clinical data via learned "
-    "per-modality attention, with two contributions: a competitive "
-    "one-vs-others (OvO) attention mechanism, and a natural language "
-    "processing (NLP) encoding of 13 numeric clinical variables using a "
-    "pretrained sentence transformer. In a 247-patient discovery cohort, "
-    "repeated-seed evaluation (5 seeds \u00d7 10-fold, 21 combinations) placed "
-    "OvO within 0.011 AUC of cooperative attention at every primary "
-    "benchmark (AUC = 0.773 vs. 0.760, *p* \u2265 0.17), exceeding it in 12 of "
-    "21 combinations (best single-partition AUC = 0.800), showing OvO's "
-    "simpler formulation matches or exceeds cooperative attention at no "
-    "accuracy cost. NLP-encoded clinical features improved AUC over raw "
-    "numeric encoding in both pathology arms (best AUC = 0.813 "
-    "[0.753\u20130.874], \u0394 = +0.030), a gain that also held for OvO. Survival "
-    "analysis showed NLP encoding yielded the highest Cox hazard ratios "
-    "(up to 6.07 vs. 5.30) and improved time-dependent AUC at 12\u201318 months, "
-    "with all Kaplan\u2013Meier stratifications reaching *p* < 0.005. "
-    "NLP-based clinical encoding offers a practical, architecture-agnostic "
-    "improvement to multimodal ICI response prediction."
-)
+P(abstract_text())
 
 kw_p = doc.add_paragraph()
 add_markup(
@@ -550,28 +933,36 @@ P(
 )
 
 P(
-    "In this study, we extend the DyAM framework with two contributions and "
-    "evaluate them on a discovery cohort of 247 patients with advanced "
-    "NSCLC treated with ICIs. First, we introduce an OvO competitive "
-    "attention variant (AttentionMatrixOvO) and compare it against the "
-    "original cooperative attention across 20 modality combinations using "
-    "10-fold cross-validation, with a confirmatory repeated-seed evaluation "
-    "(5 seeds × 10-fold) across 21 modality combinations to test the "
-    "reproducibility of any observed difference. Second, we convert 13 "
-    "numeric clinical variables into natural-language sentences and encode "
-    "them with a pretrained sentence transformer (MiniLM-L6-v2), comparing "
-    "this NLP-based representation against raw numeric encoding, a "
-    "domain-specific clinical language model (BioClinBERT), and a "
-    "PCA-compressed variant, evaluated using both binary classification "
-    "(AUC) and survival analysis (Cox regression, time-dependent AUC, "
-    "Harrell's C-index, and Kaplan–Meier stratification). Together, these "
-    "contributions aim to clarify (i) whether competitive attention offers "
-    "a reproducible accuracy advantage over cooperative attention in "
-    "multimodal fusion, or whether the two are functionally interchangeable "
-    "at this sample size, and (ii) whether NLP-based encoding of structured "
-    "clinical data provides a practical, fine-tuning-free improvement over "
-    "conventional numeric representations for both response prediction and "
-    "survival risk stratification."
+    "In this study, we extend the DyAM framework with two "
+    "contributions and evaluate them on a discovery cohort of 247 "
+    "patients with advanced NSCLC treated with ICIs. First, we "
+    "introduce an OvO competitive attention variant "
+    "(AttentionMatrixOvO) and compare it against the original "
+    "cooperative attention across 21 modality combinations using "
+    "repeated 10-fold cross-validation (5 seeds × 10-fold), "
+    "without and with the clinical encoding below. "
+    "Second, we convert 13 numeric "
+    "clinical variables into natural-language sentences and encode "
+    "them with a pretrained sentence transformer (MiniLM-L6-v2), "
+    "comparing this NLP-based representation against raw numeric "
+    "encoding, a domain-specific clinical language model "
+    "(BioClinBERT), and a PCA-compressed variant, evaluated using "
+    "both binary classification (AUC) and survival analysis (Cox "
+    "regression, Harrell's C-index, and Kaplan–Meier "
+    "stratification). Because 247 patients are few for "
+    "hypothesis tests of differences of the size at stake, we "
+    "report the direction and magnitude of differences with the "
+    "number of configurations or partitions favouring each model "
+    "and interval estimates, and we state where they are of the "
+    "same order as the variability between partitions. Together, "
+    "these contributions aim to show that (i) competitive "
+    "attention can match or exceed cooperative attention in "
+    "multimodal fusion with fewer parameters, and in which "
+    "configurations, and (ii) that NLP-based encoding of "
+    "structured clinical data is a practical, "
+    "fine-tuning-free alternative to conventional numeric "
+    "representations for response prediction and survival risk "
+    "stratification."
 )
 
 print("intro done")
@@ -644,12 +1035,6 @@ P(
     "as time from ICI initiation to disease progression or death from any "
     "cause. Patients without a recorded event were censored at the date of "
     "last follow-up."
-)
-P(
-    "This study was conducted in accordance with the Declaration of "
-    "Helsinki and approved by the Institutional Review Board of "
-    "[Institution] (Protocol No. [IRB Number]). All patients provided "
-    "written informed consent."
 )
 
 add_figure(
@@ -764,7 +1149,7 @@ P(
     "384-dimensional L2-normalised vector. No fine-tuning was performed; "
     "the model was applied in zero-shot transfer. We compared this "
     "general-purpose encoder against the domain-specific Bio_ClinicalBERT "
-    "[18]; the domain-specific model performed inferiorly (ΔAUC = −0.017 "
+    "[18]; the domain-specific model performed inferiorly (ΔAUC = −0.012 "
     "versus MiniLM-L6-v2 in the IHC-A arm), consistent with its design for "
     "masked language modelling rather than sentence-similarity tasks."
 )
@@ -904,57 +1289,76 @@ add_figure(
     ],
 )
 
-P_mix(
+P(
     "The model was trained with binary cross-entropy loss "
-    "(BCEWithLogitsLoss) with automatic inverse-frequency class weighting "
-    "to address the ≈1:3 class imbalance, ",
-    IM(m.sub("ℓ", "1")),
-    " regularisation on attention weights (", IM(m.run("α = 1.0")),
-    "), and ", IM(m.sub("ℓ", "2")), " weight decay (",
-    IM(m.run("β = 1.0")),
-    "). The Adam optimiser "
-    "was used with a learning rate of 0.01 for 125 epochs. All experiments "
-    "used 10-fold stratified cross-validation on the discovery cohort; "
-    "predictions were pooled across held-out folds for AUC computation.",
+    "(BCEWithLogitsLoss) with automatic inverse-frequency class "
+    "weighting to address the ≈1:3 class imbalance, an ℓ2 penalty "
+    "on the weights (coefficient α = 0.001); the attention-norm "
+    "penalty was disabled (β = 0). The Adam optimiser was used with "
+    "a learning rate of 0.01 for 125 epochs. All experiments used "
+    "10-fold cross-validation (shuffled, not stratified) on the "
+    "discovery cohort; predictions were pooled across held-out "
+    "folds for AUC computation."
 )
 
 H("2.5. Statistical Analysis and Evaluation", level=2)
 P(
-    "**Discriminative performance.** Area under the receiver operating "
-    "characteristic curve (AUC-ROC) was computed on pooled out-of-fold "
-    "predictions from 10-fold cross-validation. Ninety-five percent "
-    "confidence intervals (CIs) were estimated using the DeLong structural "
-    "components method [23]. Two models were considered statistically "
-    "significantly different when their 95% CIs did not overlap, "
-    "consistent with standard practice in oncology imaging studies."
+    "**Discriminative performance.** Area under the receiver "
+    "operating characteristic curve (AUC-ROC) was computed on "
+    "pooled out-of-fold predictions from 10-fold cross-validation. "
+    "Ninety-five percent confidence intervals (CIs) were estimated "
+    "using the DeLong structural components method [23]. "
+    "Differences between models are reported as the difference in "
+    "mean AUC across repeated partitions (5 seeds × 10-fold), the "
+    "number of seeds favouring each model, and, where patient-level "
+    "scores were retained, a 95% patient-level bootstrap interval "
+    "(5000 resamples) of the difference in ensemble AUC. Because "
+    "the cohort is small, hypothesis tests were not used to claim "
+    "that one model is superior; DeLong intervals are reported for "
+    "single AUC values only. Ensemble scores average, for each "
+    "patient, the per-partition scores after standardisation within "
+    "each partition."
 )
 P(
-    "**Survival analysis.** Harrell's concordance index (C-index) [24] was "
-    "computed from pooled out-of-fold risk scores against PFS. Bootstrap "
-    "95% CIs were derived from 1,000 resamples with replacement. For "
-    "pairwise comparisons, per-fold C-indices (10 values) were compared "
-    "with a two-sided Wilcoxon signed-rank test (α = 0.05). Time-dependent "
-    "AUC was computed at 6, 12, and 18 months using the cumulative/dynamic "
-    "estimator [25,26]. Multivariate Cox proportional hazards regression was "
-    "fitted with the DyAM risk score as the primary predictor, adjusted "
-    "for five clinical covariates: age, ECOG performance status, serum "
-    "albumin, dNLR, and liver metastasis status. Hazard ratios (HRs) are "
-    "reported with 95% CIs and Wald p-values. Model calibration was "
-    "assessed via the Integrated Brier Score (IBS); values below 0.25 "
-    "indicate better-than-random calibration."
+    "**Survival analysis.** Harrell's concordance index (C-index) "
+    "[24] was computed from pooled out-of-fold risk scores against "
+    "PFS, and the survival analyses were repeated for 5 seeds × "
+    "10-fold partitions, reporting mean ± s.d. Multivariate Cox "
+    "proportional hazards regression was fitted with the DyAM risk "
+    "score as the primary predictor, adjusted for five clinical "
+    "covariates: age, ECOG performance status, serum albumin, dNLR, "
+    "and liver metastasis status; hazard ratios are per unit of "
+    "risk score. Time-dependent AUC (6, 12 and 18 months; "
+    "cumulative/dynamic estimator [25,26]) was computed for each of "
+    "the five partitions (scikit-survival 0.28 with numpy 2.5.4 in "
+    "a separate environment, from the stored out-of-fold risk "
+    "scores)."
 )
 P(
-    "**Kaplan–Meier survival stratification.** Patients were dichotomised "
-    "at risk score = 0, and PFS curves for the two groups were compared "
-    "with the log-rank test. A threshold of χ² > 7.88 (p < 0.005) was "
-    "applied as the significance criterion, consistent with oncology "
-    "reporting standards."
+    "**Kaplan–Meier survival stratification.** Patients were "
+    "dichotomised at the median risk score, and PFS curves for the "
+    "two groups were compared with the log-rank test. The log-rank "
+    "χ² is reported with χ² > 3.84 (p < 0.05) and χ² > 7.88 (p < "
+    "0.005) as reference values."
 )
 P(
-    "**Software.** All analyses were performed in Python 3.10 using "
-    "PyTorch 2.0 (model training), lifelines 0.27 (Kaplan–Meier, Cox "
-    "regression, C-index), scikit-survival 0.21 (time-dependent AUC, Brier "
-    "score), and scipy 1.11 (Wilcoxon test)."
+    "**Software.** All numerical results in Tables 3–10 were "
+    "computed in one pinned environment (Linux under WSL2, Ubuntu "
+    "22.04; Python 3.8.15, PyTorch 1.8.1 (CPU), scikit-learn "
+    "0.24.2, scipy 1.6.3, numpy 1.20.3, pandas 1.2.5, and lifelines "
+    "0.26.0 for Kaplan–Meier, Cox regression and the C-index). In "
+    "this environment the original DyAM code reproduced the "
+    "single-partition AUC of the original publication at its "
+    "primary benchmark (0.798) to within one patient pair. The same "
+    "code and library versions on another operating system gave "
+    "AUCs that differed in the second or third decimal place, so "
+    "results were never compared across platforms; the radiomics "
+    "feature selection used the original procedure, without removal "
+    "of degenerate columns. The sentence-encoder embeddings "
+    "(MiniLM-L6-v2 and Bio_ClinicalBERT) were computed once in a "
+    "separate environment and cached, and time-dependent AUC was "
+    "computed from the stored out-of-fold risk scores with "
+    "scikit-survival 0.28 (numpy 2.5.4)."
 )
 
 print("methods done")
@@ -962,664 +1366,431 @@ print("methods done")
 # ============================================================ 3. RESULTS =
 H("3. Results", level=1)
 
-H("3.1. Multimodal Fusion Outperforms Single-Modality Baselines", level=2)
-P(
-    "Within the DyAM framework, models restricted to a single data source "
-    "achieved repeated-seed (5 seeds × 10-fold) AUC values of 0.616 ± "
-    "0.001 (TMB), 0.635 ± 0.021 (pathology IHC), 0.673 ± 0.020 (CT "
-    "radiomics), 0.676 ± 0.013 (genomics), and 0.720 ± 0.012 (PD-L1 TPS) "
-    "on the discovery cohort. PD-L1 TPS was the strongest individual "
-    "predictor, consistent with its role as the biomarker in routine "
-    "clinical use."
-)
-P(
-    "Fusing four data sources (CT radiomics, pathology IHC-G, genomics, "
-    "and PD-L1 TPS) under the same protocol raised the AUC to 0.760 ± "
-    "0.022, exceeding the best single source by 0.040 AUC; adding "
-    "NLP-encoded clinical variables raised it further to 0.783 ± 0.016 "
-    "(Section 3.3). Evaluated on the single cross-validation partition "
-    "used for the DeLong confidence intervals reported in Tables 5 and 6, "
-    "the same four-source configuration reached AUC = 0.784 [95% CI: "
-    "0.717–0.850] (IHC-G arm; Table 6). Multimodal fusion is therefore the "
-    "primary driver of predictive performance in this cohort, with no "
-    "individual source approaching the discrimination of the fused model."
-)
-
 H(
-    "3.2. OvO Competitive Attention Achieves Performance Comparable to "
-    "Cooperative Attention with a Simpler Parameterization",
+    '3.1. Multimodal Fusion Outperforms Single-Modality Baselines',
     level=2,
 )
 P(
-    "In an initial exploratory screen across 20 modality configurations "
-    "evaluated with a single 10-fold cross-validation partition, the OvO "
-    "attention variant outperformed the original cooperative attention in "
-    "7 of 20 cases (35%), while the original model was superior in 9 of 20 "
-    "cases (45%), with 4 identical results (single-modality, where OvO "
-    "reduces to the original). The mean AUC difference was −0.32% in "
-    "favour of the original model overall. The largest single-partition "
-    "gains for OvO were observed for PDL1+Gen (ΔAUC = +3.27%, AUC 0.716 "
-    "vs. 0.693) and Rad+Gen (ΔAUC = +2.23%; Table 3), while the largest "
-    "deficits occurred for configurations combining three or more "
-    "modalities, particularly when IHC-G or clinical labs were included "
-    "(largest deficit: Rad+IHC-A+Gen, ΔAUC = −4.94%)."
+    "Within the DyAM framework, models restricted to a single data "
+    "source achieved repeated-seed (5 seeds × 10-fold) AUC values "
+    "of 0.616 ± 0.001 (TMB), 0.635 ± 0.021 (pathology IHC-A), 0.672 "
+    "± 0.021 (CT radiomics), 0.676 ± 0.013 (genomics), and 0.720 ± "
+    "0.012 (PD-L1 TPS) on the discovery cohort. PD-L1 TPS was the "
+    "strongest individual predictor, consistent with its role as "
+    "the biomarker in routine clinical use."
 )
 P(
-    "Because a single CV partition can favour either model by chance, we "
-    "repeated this comparison as a confirmatory analysis using 5 "
-    "independent random partitions (5 seeds × 10-fold, patient labels "
-    "re-shuffled per seed) across the same 21 modality combinations used "
-    "in the primary paper-matched configuration set (Section 3.1), with "
-    "paired bootstrap significance testing on the resulting patient-level "
-    "scores. At the primary benchmark configuration (Rad+IHC-G+Gen+PDL1), "
-    "OvO reached a repeated-seed mean AUC of 0.773 ± 0.020 versus 0.760 ± "
-    "0.022 for the original cooperative model (ΔAUC = +0.009, 95% "
-    "bootstrap CI [−0.008, 0.027], p = 0.313); across all four primary "
-    "benchmarks the two models differed by at most 0.011 AUC (p ≥ 0.17). "
-    "Extending the comparison to all 21 modality combinations (Table 4), "
-    "OvO's repeated-seed mean AUC exceeded the original model's in 12 of "
-    "21 configurations and was lower in 5 of 21, with 4 identical "
-    "(single-modality, where the two formulations coincide algebraically)."
+    "Fusing four data sources (CT radiomics, pathology IHC-G, "
+    "genomics, and PD-L1 TPS) under the same protocol raised the "
+    "AUC to 0.763 ± 0.022, exceeding the best single source by "
+    "0.043 AUC; adding NLP-encoded clinical variables raised it "
+    "further to 0.786 ± 0.017 (Table 3). Multimodal fusion is "
+    "therefore the primary driver of predictive performance in this "
+    "cohort, with no individual source approaching the "
+    "discrimination of the fused model."
+)
+H(
+    '3.2. OvO Competitive Attention Is Comparable to, and in Many-Source Configurations Slightly Higher Than, Cooperative Attention with a Simpler Parameterization',
+    level=2,
 )
 P(
-    "This advantage was concentrated in the many-source regime: for "
-    "configurations fusing k ≥ 5 input sources, OvO matched or exceeded "
-    "cooperative attention in 7 of 8 cases (mean ΔAUC = +0.009, range "
-    "−0.001 to +0.018), whereas for k = 2–4 it led in only 5 of 9 cases "
-    "with a far wider spread (mean +0.003, range −0.028 to +0.045). "
-    "Notably, this is the opposite of the pattern suggested by the "
-    "single-partition screen, which had favoured OvO at low modality "
-    "counts; the repeated-seed evaluation instead places OvO's small but "
-    "consistent edge in precisely the multi-source configurations the "
-    "fusion model is intended for. These per-k counts are descriptive: "
-    "formal significance testing was performed only at the four primary "
-    "benchmarks, and the effect sizes involved (≤ 0.018 AUC) remain below "
-    "the seed-to-seed standard deviation (≈ 0.02), so the trend should be "
-    "read as a consistency pattern rather than a demonstrated superiority."
+    "We compared the OvO attention variant with the original "
+    "cooperative attention across the 21 modality combinations of "
+    "the primary paper-matched configuration set (Section 3.1), "
+    "without and with the NLP-clinical encoding of Section 3.3, "
+    "under the repeated-seed protocol (5 independent random "
+    "partitions, 5 seeds × 10-fold, patient labels re-shuffled per "
+    "seed; Table 3). Because a cohort of 247 patients cannot "
+    "support reliable hypothesis tests of differences of this size, "
+    "we report the difference in mean AUC and the number of seeds "
+    "favouring each model, and, where patient-level scores were "
+    "retained, bootstrap intervals; we do not use significance "
+    "testing to claim superiority."
 )
 P(
-    "The single-partition “best-performing configuration” identified in "
-    "the initial screen (OvO Rad+IHC-G+Gen+PDL1, AUC = 0.8003 [95% CI: "
-    "0.739–0.862]) illustrates how favourable a single partition can be: "
-    "the same configuration's repeated-seed mean AUC was 0.773, and OvO's "
-    "rank relative to the cooperative model reversed once averaged across "
-    "seeds."
+    "At the primary benchmark (Rad+IHC-G+Gen+PDL1, BM1), OvO reached "
+    "a repeated-seed mean AUC of 0.771 ± 0.021 versus 0.763 ± 0.022 "
+    "for the cooperative model (ΔAUC = +0.008; OvO higher in four of "
+    "the five seeds). The largest gains of OvO over the cooperative "
+    "model were at TMB+PDL1 (+0.045, 0.709 against 0.664), "
+    "Rad+IHC-A+MutAmp (+0.021), Rad+IHC-A+Gen+PDL1 (+0.019, 0.755 "
+    "against 0.736), Rad+IHC-A+Gen+TMB+PDL1 (+0.019), "
+    "Rad+IHC-A+Gen+PDL1+Labs (+0.017) and PDL1+Gen (+0.011), each in "
+    "all five seeds; the cooperative model was higher at IHC-G+Gen "
+    "(−0.028) and by smaller margins in radiomics-only and Rad+IHC-A "
+    "(−0.009 and −0.007)."
 )
 P(
-    "As a further robustness check, we combined OvO attention with the "
-    "NLP-clinical encoding described in Section 3.3, repeating the same "
-    "21-combination, 5-seed evaluation with clinical text embeddings added "
-    "to each configuration. OvO+NLP reproduced the same fusion-dependent "
-    "improvement pattern observed in the primary NLP-clinical analysis "
-    "(Section 3.3): AUC improved relative to the no-clinical baseline in "
-    "15 of 21 configurations (an identical set of configurations), and "
-    "declined in the same six single- or near-single-modality "
-    "configurations where any clinical addition diluted a strong "
-    "standalone signal (PD-L1, radiomics-only, and similar). At the "
-    "primary benchmark, OvO+NLP reached a repeated-seed mean AUC = 0.782 ± "
-    "0.017, matching the 0.783 ± 0.016 obtained by the repeated-seed "
-    "NLP-clinical confirmation at the same configuration (Section 3.3). "
-    "Under the single-partition protocol, "
-    "OvO+NLP reached AUC = 0.8133 at the Rad+IHC-A+Gen+TMB+PDL1 "
-    "configuration, the highest value obtained under either evaluation "
-    "protocol in this study."
+    "Adding the NLP-clinical encoding in place of the numeric labs "
+    "raised the AUC in both configurations that contain labs, for "
+    "both attention mechanisms: from 0.762 to 0.786 for DyAM and "
+    "from 0.766 to 0.785 for OvO at BM2, and from 0.731 to 0.745 and "
+    "from 0.747 to 0.769 in the configuration with IHC-A (Table 3). "
+    "Relative to BM1, which has the same sources without any "
+    "clinical variable, the NLP gain was +0.023 for DyAM (0.763 ± "
+    "0.022 to 0.786 ± 0.017) and +0.014 for OvO (0.771 ± 0.021 to "
+    "0.785 ± 0.022). The highest repeated-seed mean AUCs in Table 3 "
+    "were 0.786 (DyAM+NLP) and 0.785 (OvO+NLP) at BM2, against 0.771 "
+    "(OvO) and 0.763 (DyAM) at BM1."
 )
 P(
-    "This shows that OvO's simpler, N-parameter formulation (independent "
-    "per-modality scores compared against the mean of the others) delivers "
-    "the same NLP-clinical benefit as the cooperative model without the "
-    "N × N weight matrix, and that the clinical-encoding intervention, not "
-    "the choice of attention mechanism, is the source of that gain. "
-    "Table 3 summarises the exploratory single-partition screen and Table 4 "
-    "gives the repeated-seed AUC of all three models across all 21 "
-    "configurations; the corresponding single-partition values are provided "
-    "in Supplementary Table S3."
+    "To examine the NLP-containing models beyond the two "
+    "configurations with labs, we compared DyAM+NLP and OvO+NLP with "
+    "the NLP encoding added as a further source to the six "
+    "configurations with k ≥ 5 (Table 4). OvO+NLP had the higher AUC "
+    "in all five seeds at Rad+IHC-A+Gen (+0.010), Rad+IHC-A+MutAmp "
+    "(+0.026), Rad+IHC-A+Gen+PDL1 (+0.024) and "
+    "Rad+IHC-A+Gen+TMB+PDL1 (+0.028); DyAM+NLP was nominally higher "
+    "at Rad+IHC-G+Gen (−0.004) and at BM1 (−0.001). At BM1 the two "
+    "ensemble AUCs were 0.799 (DyAM+NLP) and 0.792 (OvO+NLP); the "
+    "patient-level bootstrap intervals of the ensemble differences "
+    "were wide and, except for two configurations whose lower bound "
+    "was close to zero, included zero."
 )
-
-
+P(
+    "OvO's potential advantage is plausibly one of parameter "
+    "economy: with the 384-dimensional NLP source added to BM1, the "
+    "cooperative model has 4,969 trainable parameters against 1,242 "
+    "for OvO, and the advantage of the simpler model was largest at "
+    "the largest source counts. We did not test this explanation "
+    "directly; for example, we did not shrink the cooperative "
+    "attention matrix to see whether the gap closes. Table 3 gives "
+    "the repeated-seed AUC of both attention mechanisms, with and "
+    "without NLP, across all 21 configurations, and Table 4 the "
+    "comparison of the NLP-containing models in the six "
+    "configurations with k ≥ 5."
+)
 add_table(
-    ["Configuration", "Original AUC", "OvO AUC", "ΔAUC"],
-    [
-        ["PDL1+Gen", "0.693", "**0.716**", "+3.27%"],
-        ["Rad+Gen", "0.738", "**0.755**", "+2.23%"],
-        ["Rad+IHC-G+Gen+PDL1", "0.784", "**0.800**", "+2.10%"],
-        ["Rad+IHC-A+Gen+PDL1", "0.764", "**0.777**", "+1.63%"],
-        ["TMB+PDL1", "0.705", "**0.715**", "+1.42%"],
-        ["Rad+IHC-A+Gen", "**0.757**", "0.719", "−4.94%"],
-        ["IHC-G+Gen", "**0.756**", "0.723", "−4.33%"],
-        ["Rad+IHC-A+Gen+PDL1+Labs", "**0.768**", "0.747", "−2.83%"],
-        ["Rad+IHC-G+Gen", "**0.787**", "0.766", "−2.66%"],
-        ["Rad+IHC-G+Gen+PDL1+Labs", "**0.788**", "0.783", "−0.56%"],
-    ],
+    ["#", "Configuration", "k", "DyAM", "OvO", "DyAM+NLP", "OvO+NLP"],
+    tex_rows("table_ovo_all21"),
     caption=(
-        "**Table 3.** Top configurations from the exploratory, "
-        "single-partition screen comparing OvO competitive attention and "
-        "original cooperative attention. ΔAUC is computed as OvO minus "
-        "Original. As described in the text, these single-partition "
-        "differences were not reproducible under repeated-seed evaluation "
-        "(Table 4) and should be interpreted as an initial screen rather "
-        "than a confirmed effect."
+        "**Table 3.** Repeated-seed (5 seeds × 10-fold) AUC across all 21 paper-matched modality combinations for "
+        "cooperative attention (DyAM) and OvO competitive attention, each without and with NLP-clinical encoding. "
+        "All four columns were produced by the same pipeline. k is the number of fused input sources (CT radiomics "
+        "contributes one source per lesion site). Bold marks the highest value in each row (among DyAM and OvO where "
+        "the +NLP entries repeat them). For k = 1 OvO reduces algebraically to the cooperative formulation, hence the "
+        "identical values. Configurations 8, 11, 18 and 21 are the primary benchmarks BM4, BM3, BM1 and BM2. The NLP "
+        "encoding replaces the numeric labs, so only configurations 20 and 21 (the two that contain labs) differ "
+        "between the models with and without NLP; the other configurations contain no clinical source, and their "
+        "+NLP entries repeat the values without NLP (not in bold)."
     ),
 )
 
 add_table(
-    ["#", "Configuration", "k", "DyAM", "OvO", "OvO+NLP"],
-    [
-        ["1", "TMB", "1", "**0.616**", "**0.616**", "0.606"],
-        ["2", "PDL1", "1", "**0.720**", "**0.720**", "0.694"],
-        ["3", "IHC-A", "1", "**0.635**", "**0.635**", "0.625"],
-        ["4", "Gen", "1", "**0.676**", "**0.676**", "0.661"],
-        ["5", "Rad", "3", "**0.673**", "0.659", "0.651"],
-        ["6", "Rad-LU", "4", "0.637", "**0.646**", "0.629"],
-        ["7", "TMB+PDL1", "2", "0.664", "0.709", "**0.714**"],
-        ["8", "PDL1+Gen (BM4)", "2", "0.707", "0.718", "**0.747**"],
-        ["9", "Rad+IHC-A", "4", "0.671", "0.668", "**0.712**"],
-        ["10", "Rad+IHC-G", "4", "0.706", "0.703", "**0.736**"],
-        ["11", "Rad+Gen (BM3)", "4", "0.709", "**0.713**", "0.708"],
-        ["12", "IHC-A+Gen", "2", "0.693", "0.697", "**0.702**"],
-        ["13", "IHC-G+Gen", "2", "0.747", "0.719", "**0.752**"],
-        ["14", "Rad+IHC-A+Gen", "5", "0.725", "0.735", "**0.744**"],
-        ["15", "Rad+IHC-G+Gen", "5", "0.751", "0.752", "**0.760**"],
-        ["16", "Rad+IHC-A+MutAmp", "6", "0.734", "0.744", "**0.747**"],
-        ["17", "Rad+IHC-A+Gen+PDL1", "6", "0.743", "0.753", "**0.757**"],
-        ["18", "Rad+IHC-G+Gen+PDL1 (BM1)", "6", "0.760", "0.773", "**0.782**"],
-        ["19", "Rad+IHC-A+Gen+TMB+PDL1", "7", "0.749", "**0.766**", "0.765"],
-        ["20", "Rad+IHC-A+Gen+PDL1+Labs", "7", "0.736", "0.745", "**0.757**"],
-        ["21", "Rad+IHC-G+Gen+PDL1+Labs (BM2)", "7", "0.764", "0.763", "**0.782**"],
-    ],
+    ["Configuration", "DyAM+NLP", "OvO+NLP", "Δ per seed (wins)", "Ens. DyAM+NLP", "Ens. OvO+NLP", "Δ ens. [95% CI]"],
+    tex_rows("table_ovo_nlp20"),
     caption=(
-        "**Table 4.** Repeated-seed (5 seeds × 10-fold) AUC across all 21 "
-        "paper-matched modality combinations, for the original cooperative "
-        "attention (DyAM), OvO competitive attention, and OvO combined "
-        "with NLP-clinical encoding. k is the number of fused input "
-        "sources (CT radiomics contributes one source per lesion site). "
-        "Bold marks the highest value in each row. For k = 1 OvO reduces "
-        "algebraically to the cooperative formulation, hence the identical "
-        "values. Configurations 8, 11, 18 and 21 are the primary "
-        "benchmarks BM4, BM3, BM1 and BM2; paired-bootstrap testing (2000 "
-        "resamples) was performed at those four only, giving ΔAUC "
-        "(OvO − DyAM) of +0.011 [−0.005, 0.026], p = 0.172 (BM4); +0.000 "
-        "[−0.012, 0.013], p = 0.980 (BM3); +0.009 [−0.008, 0.027], "
-        "p = 0.313 (BM1); and −0.004 [−0.020, 0.009], p = 0.536 (BM2). "
-        "Single-partition values for the same 21 configurations are given "
-        "in Supplementary Table S3."
+        "**Table 4.** DyAM+NLP versus OvO+NLP over 5 seeds (5 seeds × 10-fold) on the six configurations fusing five or more "
+        "sources, with the NLP encoding added as a further source. Per-seed AUC is the mean (s.d.) of the 5 pooled out-of-fold "
+        "AUCs; the ensemble averages the 5 seeds' standardised scores per patient. Δ is OvO+NLP minus DyAM+NLP; the bracket is "
+        "the 95% patient-level bootstrap interval (5000 resamples) of the ensemble difference. Wins is the number of seeds in "
+        "which OvO+NLP had the higher AUC. Same pipeline as Table 3."
     ),
 )
 
 H(
-    "3.3. NLP Encoding Consistently Improves AUC over Numeric Clinical "
-    "Features",
+    '3.3. NLP Encoding Improves AUC over Numeric Clinical Labs',
     level=2,
 )
 P(
-    "Seven NLP encoding variants were evaluated against numeric clinical "
-    "labs as a reference. In the IHC-A arm, NLP-PCA16 achieved the highest "
-    "AUC among clinical encoding strategies (AUC = 0.784, 95% CI: "
-    "0.719–0.848; ΔAUC = +0.020 over no-clinical baseline), compared to "
-    "+0.004 for numeric labs (Table 5). In the IHC-G arm, NLP raw "
-    "(384-dimensional) achieved the best result (AUC = 0.813, 95% CI: "
-    "0.753–0.874; ΔAUC = +0.030), with NLP-PCA16 performing comparably "
-    "(ΔAUC = +0.028; Table 6)."
+    "Seven clinical-encoding variants were evaluated under the DyAM "
+    "architecture in two pathology arms (IHC-A: seven variants; "
+    "IHC-G: four variants), 5 seeds × 10-fold (Tables 5 and 6; "
+    "Figure 4). Relative to numeric labs, the NLP raw "
+    "(384-dimensional) encoding raised the mean AUC by +0.017 in "
+    "the IHC-A arm (0.749 vs. 0.732) and by +0.020 in the IHC-G arm "
+    "(0.772 vs. 0.753); the PCA-compressed NLP variant gave +0.013 "
+    "and +0.015. These differences are of the same order as the "
+    "partition-to-partition standard deviation (0.012–0.025), so "
+    "they should be read as a consistent direction of modest size. "
+    "The same advantage over numeric labs was present in the "
+    "21-configuration analysis for both attention mechanisms: in "
+    "the two seven-source configurations that contain labs (Table "
+    "3, rows 20 and 21), replacing labs by the NLP encoding raised "
+    "the mean AUC from 0.731 to 0.745 and from 0.762 to 0.786 for "
+    "DyAM, and from 0.747 to 0.769 and from 0.766 to 0.785 for OvO."
 )
 P(
-    "However, all pairwise DeLong confidence intervals overlapped "
-    "substantially, meaning no individual NLP variant reached statistical "
-    "significance compared to the no-clinical baseline. The largest "
-    "separation was observed in the IHC-G arm (NLP raw vs. no-clinical: "
-    "lower CI 0.753 vs. upper CI 0.850; overlap ≈0.10). As discussed in "
-    "the Discussion, this is attributable to the limited cohort size "
-    "(n = 247) rather than an absent effect."
+    "**Comparison with no clinical information.** The comparison "
+    "with the no-clinical baseline was smaller than the comparison "
+    "with labs. In the arm analysis above, the NLP raw encoding was "
+    "above the no-clinical baseline by +0.007 in both arms (IHC-A: "
+    "0.749 vs. 0.741; IHC-G: 0.772 vs. 0.765), whereas numeric labs "
+    "were below it (−0.010 and −0.013). At the primary benchmark of "
+    "the 21-configuration analysis, NLP was above the configuration "
+    "without clinical variables by +0.023 for DyAM and +0.014 for "
+    "OvO. The direction "
+    "therefore agreed between the two analyses, but the size of the "
+    "gain over omitting clinical variables (+0.007 to +0.023) is of "
+    "the same order as the partition-to-partition spread, so we "
+    "base the main claim on NLP versus numeric labs and regard the "
+    "benefit of NLP encoding over omitting clinical variables as "
+    "small and not established in this cohort."
 )
 P(
-    "*Repeated-seed confirmation.* To verify that the advantage of NLP "
-    "encoding is not specific to a single CV partition, we repeated the "
-    "NLP-versus-labs comparison under the repeated-seed protocol of "
-    "Section 3.2 (5 seeds × 10-fold) across all 21 paper-matched modality "
-    "combinations, using masked averaging of the per-modality risk scores "
-    "as the fusion rule to isolate the encoding effect from attention "
-    "learning. NLP encoding exceeded numeric labs in 19 of 21 "
-    "combinations; the two exceptions (PD-L1 alone and the four-lesion "
-    "radiomics-only configuration) are single-source configurations in "
-    "which adding any clinical modality dilutes a strong standalone "
-    "signal. At the primary IHC-G-arm configuration (Rad+IHC-G+Gen+PDL1), "
-    "repeated-seed mean AUC was 0.766 ± 0.013 with numeric labs versus "
-    "0.783 ± 0.016 with NLP encoding (Δ = +0.017); the corresponding "
-    "IHC-A-arm values were 0.742 ± 0.014 versus 0.758 ± 0.013 "
-    "(Δ = +0.016). The same NLP gain also held under OvO attention "
-    "(Section 3.2), indicating the improvement is robust to both the CV "
-    "partition and the fusion mechanism."
+    "**Domain-specific versus general-purpose encoder.** "
+    "Bio_ClinicalBERT [18], PCA-compressed to 16 dimensions, "
+    "reached 0.732 ± 0.012 in the IHC-A arm, below MiniLM-L6-v2 "
+    "with the same compression (0.744 ± 0.012; ΔAUC = −0.012, lower "
+    "in all five partitions) and below the no-clinical baseline "
+    "(0.741; Supplementary Note S2), consistent with its "
+    "pretraining objective of masked language modelling on clinical "
+    "notes rather than semantic sentence similarity."
 )
 P(
-    "*Domain-specific versus general-purpose encoder.* Bio_ClinicalBERT "
-    "[18], PCA-compressed to 16 dimensions, performed below MiniLM-L6-v2 "
-    "in the IHC-A arm (AUC = 0.767 versus 0.784; ΔAUC = −0.017), "
-    "consistent with its pretraining objective of masked language "
-    "modelling on clinical notes rather than semantic sentence similarity."
+    "**Combined encoding.** Concatenating numeric labs and the NLP "
+    "encoding as separate sources (8 sources in total) did not "
+    "improve on the NLP encoding alone (IHC-A: 0.744 for NLP-PCA16 "
+    "alone vs. 0.736 for labs + NLP-PCA16), and with n/N = 247/8 ≈ "
+    "31 the attention weights are poorly determined. NLP encoding "
+    "is therefore used as a *replacement* for, rather than an "
+    "addition to, numeric clinical features."
 )
-P_mix(
-    "*Combined encoding.* Concatenating numeric labs and NLP-PCA16 as "
-    "separate modalities (8 modalities total) degraded performance "
-    "(AUC = 0.753, Δ = −0.011 in IHC-A), likely due to unstable attention "
-    "learning with ",
-    IM(m.frac(["n"], ["N"]), m.run(" = "), m.frac(["247"], ["8"]),
-       m.run(" ≈ 31")),
-    ". NLP encoding is therefore recommended as a *replacement* for, "
-    "rather than an addition to, numeric clinical features.",
-)
-
 add_table(
-    ["Model", "AUC", "95% CI", "ΔAUC"],
+    ["Model", "AUC (mean ± s.d.)", "Δ vs no clinical", "Δ vs labs"],
     [
-        ["No clinical (baseline)", "0.764", "[0.695–0.833]", "(ref)"],
-        ["+ Labs (13-dim numeric)", "0.768", "[0.700–0.837]", "+0.004"],
-        ["+ NLP raw (384-dim)", "0.781", "[0.717–0.845]", "+0.017"],
-        ["**+ NLP-PCA16 (16-dim)**", "**0.784**", "**[0.719–0.848]**", "**+0.020**"],
-        ["+ Labs + NLP (combined)", "0.767", "[0.700–0.835]", "+0.003"],
-        ["+ Labs + NLP-PCA16 (combined)", "0.753", "[0.682–0.823]", "−0.011"],
-        ["+ BioClinBERT-PCA16", "0.767", "[0.701–0.833]", "+0.003"],
+    ['No clinical (baseline)', '0.741 ± 0.012', '(ref)', 'n/a'],
+    ['+ Labs (13-dim numeric)', '0.732 ± 0.014', '−0.010', 'n/a'],
+    ['+ NLP raw (384-dim)', '0.749 ± 0.016', '+0.007', '+0.017'],
+    ['+ NLP-PCA16 (16-dim)', '0.744 ± 0.012', '+0.003', '+0.013'],
+    ['+ Labs + NLP (combined)', '0.735 ± 0.016', '−0.007', '+0.003'],
+    ['+ Labs + NLP-PCA16 (combined)', '0.736 ± 0.018', '−0.005', '+0.005'],
+    ['+ BioClinBERT-PCA16', '0.732 ± 0.012', '−0.009', '+0.001'],
     ],
     caption=(
-        "**Table 5.** AUC comparison across clinical encoding strategies "
-        "— IHC-A arm. All models use the DyAM architecture with CT "
-        "radiomics (PC, PL, LN), pathology IHC-A, genomics, and PD-L1 TPS "
-        "as base modalities; clinical encoding is the varied factor. AUC "
-        "computed on pooled out-of-fold predictions from 10-fold "
-        "cross-validation (n = 247). 95% CI by DeLong structural "
-        "components method."
+        "**Table 5.** AUC comparison across clinical encoding strategies, IHC-A arm. All models use the DyAM architecture with CT radiomics (PC, PL, LN), "
+        "pathology IHC-A, genomics, and PD-L1 TPS as base modalities; clinical encoding is the varied factor. Values are mean ± s.d. over 5 independent "
+        "10-fold partitions (5 seeds × 10-fold, n = 247). ΔAUC is the difference of means relative to the no-clinical baseline and to numeric labs; "
+        "the differences are smaller than the seed-to-seed s.d. and are reported as direction and magnitude. n/a, not applicable."
     ),
 )
 
 add_table(
-    ["Model", "AUC", "95% CI", "ΔAUC"],
+    ["Model", "AUC (mean ± s.d.)", "Δ vs no clinical", "Δ vs labs"],
     [
-        ["No clinical (baseline)", "0.784", "[0.717–0.850]", "(ref)"],
-        ["+ Labs (13-dim numeric)", "0.788", "[0.723–0.853]", "+0.004"],
-        ["**+ NLP raw (384-dim)**", "**0.813**", "**[0.753–0.874]**", "**+0.030**"],
-        ["+ NLP-PCA16 (16-dim)", "0.812", "[0.751–0.873]", "+0.028"],
+    ['No clinical (baseline)', '0.765 ± 0.019', '(ref)', 'n/a'],
+    ['+ Labs (13-dim numeric)', '0.752 ± 0.020', '−0.013', 'n/a'],
+    ['+ NLP raw (384-dim)', '0.772 ± 0.025', '+0.007', '+0.020'],
+    ['+ NLP-PCA16 (16-dim)', '0.768 ± 0.022', '+0.003', '+0.015'],
     ],
     caption=(
-        "**Table 6.** AUC comparison across clinical encoding strategies "
-        "— IHC-G arm. Base modalities: CT radiomics (PC, PL, LN), "
-        "pathology IHC-G (GLCM texture), genomics, and PD-L1 TPS. All "
-        "other details as in Table 5."
+        "**Table 6.** AUC comparison across clinical encoding strategies, IHC-G arm. All models use the DyAM architecture with CT radiomics (PC, PL, LN), "
+        "pathology IHC-G, genomics, and PD-L1 TPS as base modalities; clinical encoding is the varied factor. Values are mean ± s.d. over 5 independent "
+        "10-fold partitions (5 seeds × 10-fold, n = 247). ΔAUC is the difference of means relative to the no-clinical baseline and to numeric labs; "
+        "the differences are smaller than the seed-to-seed s.d. and are reported as direction and magnitude. n/a, not applicable."
     ),
 )
 
 add_figure(
     f"{FIGDIR_CONV}\\fig3a_auc_ihca_demo.png",
-    "**Figure 4A.** AUC comparison across clinical encoding strategies, "
-    "IHC-A arm (7 variants). Bars show pooled out-of-fold AUC from "
-    "10-fold cross-validation (n = 247); error bars denote DeLong 95% "
-    "confidence intervals. The dashed horizontal line at AUC = 0.80 "
-    "indicates the conventional threshold for clinically useful "
-    "discrimination.",
+    "**Figure 4A.** AUC comparison across clinical encoding strategies, IHC-A arm (7 variants). Bars show the mean AUC over 5 seeds × 10-fold "
+    "cross-validation (n = 247); error bars denote ±1 standard deviation across the five partitions. The dashed horizontal line at AUC = 0.80 marks the "
+    "conventional threshold for clinically useful discrimination.",
     width_in=5.0,
 )
 add_figure(
     f"{FIGDIR_CONV}\\fig3b_auc_ihcg_demo.png",
-    "**Figure 4B.** AUC comparison across clinical encoding strategies, "
-    "IHC-G arm (4 variants). Same conventions as Figure 4A. "
-    "Best-performing model overall: DyAM Rad+IHC-G+Gen+PDL1+NLP raw, "
-    "AUC = 0.813.",
-    width_in=5.0,
+    "**Figure 4B.** AUC comparison across clinical encoding strategies, IHC-G arm (4 variants). Same conventions as Figure 4A.",
+    width_in=4.4,
 )
-
 H(
-    "3.4. Survival Analysis: NLP Encoding Enhances Independent Prognostic "
-    "Value",
+    '3.4. Survival Analysis: Clinical Encoding Raises the Hazard Ratio of the Risk Score',
     level=2,
 )
 P(
-    "The DyAM risk score was a statistically significant independent "
-    "prognostic factor for PFS across all eight model variants in "
-    "multivariate Cox regression (all p < 0.001, adjusted for age, ECOG "
-    "performance status, serum albumin, dNLR, and liver metastasis "
-    "status; Table 7)."
+    "Under 5 seeds × 10-fold evaluation, the DyAM risk score was "
+    "strongly associated with progression-free survival in "
+    "multivariate Cox regression adjusted for age, ECOG performance "
+    "status, serum albumin, dNLR, and liver metastasis status, in "
+    "every model variant (hazard ratio per unit of risk score "
+    "4.0–4.6; Table 7)."
 )
 P(
-    "**Cox hazard ratios.** NLP-PCA16 yielded the highest hazard ratio in "
-    "the IHC-A arm (HR = 6.07, 95% CI: 3.50–10.52), compared with HR = "
-    "5.30 [3.10–9.07] for the no-clinical baseline and HR = 5.31 "
-    "[2.88–9.79] for numeric labs. In the IHC-G arm, NLP raw achieved "
-    "HR = 4.97 [2.98–8.31] versus HR = 4.74 [2.82–7.97] for no-clinical "
-    "and HR = 4.49 [2.56–7.89] for numeric labs. Notably, numeric labs did "
-    "not improve the hazard ratio in either arm, whereas NLP encoding "
-    "consistently increased it, suggesting that sentence-embedded "
-    "clinical context captures prognostic information not represented by "
-    "the five Cox covariates or by raw numeric features."
+    "**Cox hazard ratios.** In both arms the hazard ratio was "
+    "higher with the NLP encodings than without a clinical "
+    "encoding: IHC-A, 4.12 (no clinical) vs. 4.13 (labs), 4.52 (NLP "
+    "raw) and 4.43 (NLP-PCA16); IHC-G, 4.02 vs. 4.54, 4.63 and "
+    "4.47. Numeric labs raised the hazard ratio in the IHC-G arm "
+    "only. The NLP encodings gave the numerically highest hazard "
+    "ratios (by about 0.1 over labs in IHC-G and 0.4 in IHC-A), but "
+    "these differences are of the same order as the "
+    "partition-to-partition spread (0.2–0.6), so the data do not "
+    "reliably distinguish NLP from numeric labs on this endpoint."
 )
 P(
-    "**Time-dependent AUC.** The advantage of NLP encoding was "
-    "time-dependent: in the IHC-A arm, NLP-PCA16 improved time-dependent "
-    "AUC by +0.024 at 12 months and +0.020 at 18 months relative to the "
-    "no-clinical baseline, with smaller differences at 6 months (+0.002). "
-    "This pattern, concentrated at late timepoints, is consistent with the "
-    "hypothesis that sentence embeddings primarily encode long-term "
-    "survival characteristics rather than short-term binary response."
+    "**C-index.** Harrell's C-index was 0.61–0.62 for all variants "
+    "and differed by at most 0.006 between encodings in either arm; "
+    "numeric labs gave the highest value in both arms (IHC-A: 0.614 "
+    "vs. 0.609 for NLP raw; IHC-G: 0.623 vs. 0.617), and the NLP "
+    "variants did not exceed the no-clinical baseline in the IHC-A "
+    "arm (0.608–0.609 vs. 0.608)."
 )
 P(
-    "**C-index.** Harrell's C-index showed a consistent but modest "
-    "improvement with NLP variants (ΔC = +0.005 in both IHC arms; "
-    "Wilcoxon p = 0.492 and p = 0.375 for IHC-A and IHC-G, respectively), "
-    "which did not reach statistical significance. The high inter-fold "
-    "variance (range 0.52–0.78 across 10 folds) and the small fold size "
-    "(≈25 patients per fold) explain the non-significant result "
-    "independently of the true effect size."
+    "**Kaplan–Meier stratification.** Dichotomising patients at the "
+    "median risk score gave a log-rank χ² above 3.84 (p < 0.05) in "
+    "all 55 model–partition combinations (smallest value 7.0) and "
+    "above 7.88 (p < 0.005) in 53 of them (Table 8). The mean "
+    "log-rank χ² was higher with clinical encodings than without "
+    "(IHC-A: 16.9 without vs. 19.5 with labs and 19.3 with NLP raw; "
+    "IHC-G: 13.6 vs. 14.5 and 15.3), again with no consistent "
+    "separation between NLP and labs. Kaplan–Meier curves of the "
+    "primary benchmark models are shown in Figure 5, and the "
+    "five-partition summary of survival metrics in Figure 6. "
+    "Time-dependent AUC (Table 7) was 0.63–0.69 at 6, 12 and 18 "
+    "months for every variant and differed by about 0.03 or less "
+    "between encodings within an arm; it was not systematically "
+    "higher with the NLP encodings (IHC-A at 12 months: 0.689 with "
+    "NLP raw, 0.684 with labs, 0.684 without clinical variables; at "
+    "18 months the no-clinical variants were the highest, 0.662 and "
+    "0.655)."
 )
 P(
-    "**Calibration.** All models were well-calibrated, with Integrated "
-    "Brier Scores of 0.172–0.175, well below the 0.25 random-classifier "
-    "baseline. NLP-PCA16 in the IHC-A arm achieved the lowest IBS "
-    "(0.1716), indicating marginally superior probabilistic calibration."
+    "**OvO attention with the NLP encoding at the primary benchmark.** "
+    "We also compared the survival association of the four "
+    "attention/encoding models at the primary benchmark "
+    "(Rad+IHC-G+Gen+PDL1; 5 seeds × 10-fold, risk scores "
+    "standardised, hazard ratio per 1 s.d. adjusted for the same "
+    "covariates). The hazard ratio rose from 1.53 for cooperative "
+    "attention (DyAM) to 1.58 for OvO, 1.60 for DyAM with NLP and "
+    "1.64 for OvO with NLP (log hazard ratio 0.425, 0.460, 0.468 and "
+    "0.495); the log-rank χ² rose from 12.3 to 14.4, 16.3 and 17.9, "
+    "and the C-index from 0.616 to 0.620, 0.622 and 0.623. Relative "
+    "to DyAM, OvO with NLP had a higher log hazard ratio in all 5 "
+    "seeds (+0.070 on average; 95% patient-bootstrap interval 0.013 "
+    "to 0.106) and a higher C-index in all 5 seeds (+0.006), the "
+    "latter within the bootstrap interval of zero. OvO with NLP was "
+    "higher than DyAM with NLP by +0.027 in log hazard ratio (5 of 5 "
+    "seeds) and by +0.001 in C-index, and the two risk scores were "
+    "highly correlated (r = 0.99), so the gain relative to DyAM came "
+    "from the OvO mechanism and the NLP encoding together, about "
+    "+0.035 and +0.043 each when added alone. The same ordering was "
+    "obtained in two other software environments (Windows, "
+    "scikit-learn 1.1.1 and 0.24.2; log hazard ratio difference to "
+    "DyAM +0.070 and +0.076)."
 )
 P(
-    "**Kaplan–Meier stratification.** Dichotomising patients at risk "
-    "score = 0 produced statistically significant separation between "
-    "high- and low-risk groups for all eight models (p < 0.005 by "
-    "log-rank test; Table 8), with the highest χ² statistic observed for "
-    "the IHC-G arm with NLP raw clinical encoding (χ² = 28.92)."
+    "**Survival association across the 21 configurations.** "
+    "We repeated this evaluation on all 21 configurations of Table 3 (5 seeds × 10-fold; Tables 9 and 10). The association of the risk score with survival grew with the number of fused sources: "
+    "for the single-source scores the C-index was 0.567–0.587 and the 12-month time-dependent AUC 0.596–0.661, whereas for the configurations with five to seven sources (14–21) "
+    "the C-index was 0.588–0.627, the 12-month time-dependent AUC 0.657–0.709 and the log hazard ratio per 1 s.d. 0.362–0.505. "
+    "In each of these eight configurations the mean log hazard ratio, 12-month time-dependent AUC and C-index of OvO were above those of cooperative attention "
+    "(for example, at BM1 the log hazard ratio 0.460 against 0.425 and the 12-month time-dependent AUC 0.709 against 0.681; the C-index differences were between +0.001 and +0.016). "
+    "In the two configurations that contain labs, OvO with the NLP encoding had the highest log hazard ratio (0.495 at BM2 and 0.497 in configuration 20, against 0.416 and 0.411 for DyAM, "
+    "and 0.468 and 0.450 for DyAM with NLP; higher than DyAM in all 5 seeds in both configurations), and the highest 12-month time-dependent AUC (0.708 and 0.704, against 0.675 and 0.678 for DyAM), "
+    "with a C-index within 0.01 of DyAM (0.623 against 0.626 at BM2; 0.617 against 0.613 in configuration 20). "
+    "The Kaplan–Meier log-rank statistic (mean over the 5 seeds) showed the same direction: OvO was above cooperative attention in the six configurations with five to seven sources that do not contain labs (14–19; for example 14.4 against 12.3 at BM1 and 19.9 against 12.1 in configuration 19), and at BM2 (17.6 against 15.2; 17.9 for OvO with NLP), whereas in configuration 20 the cooperative model was higher (20.5 against 14.3; 17.6 for OvO with NLP). For several configurations with fewer sources the two mechanisms were close or OvO was lower (for example TMB+PDL1 and IHC-G+Gen)."
 )
-
 add_table(
-    ["Model", "C-index [95% CI]", "Cox HR [95% CI]", "IBS"],
+    ["Arm", "Model", "C-index", "Cox HR", "tdAUC 6 mo", "12 mo", "18 mo"],
     [
-        ["IHC-A arm", "", "", ""],
-        ["No clinical", "0.623 [0.580–0.665]", "5.30 [3.10–9.07]", "0.1745"],
-        ["+ Labs", "0.626 [0.583–0.669]", "5.31 [2.88–9.79]", "0.1739"],
-        ["+ NLP raw", "0.625 [0.583–0.663]", "5.91 [3.40–10.25]", "0.1723"],
-        ["**+ NLP-PCA16**", "**0.628 [0.584–0.668]**", "**6.07 [3.50–10.52]**", "**0.1716**"],
-        ["IHC-G arm", "", "", ""],
-        ["No clinical", "0.626 [0.583–0.665]", "4.74 [2.82–7.97]", "0.1748"],
-        ["+ Labs", "**0.632 [0.587–0.675]**", "4.49 [2.56–7.89]", "0.1746"],
-        ["**+ NLP raw**", "**0.632 [0.591–0.672]**", "**4.97 [2.98–8.31]**", "**0.1736**"],
-        ["+ NLP-PCA16", "0.631 [0.590–0.672]", "4.69 [2.86–7.68]", "0.1736"],
+    ['IHC-A', 'No clinical (baseline)', '0.608 ± 0.007', '4.12 ± 0.30', '0.681 ± 0.015', '0.684 ± 0.028', '0.662 ± 0.048'],
+    ['IHC-A', '+ Labs (13-dim numeric)', '0.614 ± 0.007', '4.13 ± 0.36', '0.682 ± 0.016', '0.684 ± 0.017', '0.633 ± 0.038'],
+    ['IHC-A', '+ NLP raw (384-dim)', '0.609 ± 0.010', '4.52 ± 0.21', '0.679 ± 0.016', '0.689 ± 0.023', '0.648 ± 0.043'],
+    ['IHC-A', '+ NLP-PCA16 (16-dim)', '0.608 ± 0.010', '4.43 ± 0.27', '0.678 ± 0.019', '0.686 ± 0.024', '0.645 ± 0.043'],
+    ['IHC-A', '+ Labs + NLP (combined)', '0.609 ± 0.008', '4.31 ± 0.59', '0.675 ± 0.012', '0.672 ± 0.022', '0.632 ± 0.042'],
+    ['IHC-A', '+ Labs + NLP-PCA16 (combined)', '0.610 ± 0.008', '4.35 ± 0.62', '0.678 ± 0.011', '0.673 ± 0.020', '0.631 ± 0.039'],
+    ['IHC-A', '+ BioClinBERT-PCA16', '0.614 ± 0.009', '4.64 ± 0.20', '0.676 ± 0.016', '0.690 ± 0.023', '0.641 ± 0.034'],
+    ['IHC-G', 'No clinical (baseline)', '0.617 ± 0.007', '4.02 ± 0.32', '0.689 ± 0.017', '0.677 ± 0.020', '0.655 ± 0.033'],
+    ['IHC-G', '+ Labs (13-dim numeric)', '0.623 ± 0.006', '4.54 ± 0.24', '0.692 ± 0.007', '0.681 ± 0.016', '0.634 ± 0.027'],
+    ['IHC-G', '+ NLP raw (384-dim)', '0.617 ± 0.006', '4.63 ± 0.39', '0.693 ± 0.012', '0.685 ± 0.020', '0.643 ± 0.032'],
+    ['IHC-G', '+ NLP-PCA16 (16-dim)', '0.618 ± 0.005', '4.47 ± 0.30', '0.691 ± 0.014', '0.682 ± 0.021', '0.640 ± 0.032'],
     ],
     caption=(
-        "**Table 7.** Survival analysis results across all model "
-        "variants. Discovery cohort (n = 247; 209 events, 84.6%; median "
-        "PFS 2.7 months). C-index: Harrell's concordance index with "
-        "bootstrap 95% CI (1,000 resamples). Cox HR: hazard ratio from "
-        "multivariate Cox proportional hazards regression adjusted for "
-        "age, ECOG, albumin, dNLR, and liver metastases (all Cox "
-        "p < 0.001). IBS: Integrated Brier Score (lower is better; "
-        "< 0.25 indicates better-than-random calibration). Bold: best "
-        "value per column within each IHC arm."
+        "**Table 7.** Survival analysis across model variants. Discovery cohort (n = 247; 209 events, 84.6%; median PFS 2.7 months). "
+        "Values are mean ± s.d. over 5 independent 10-fold partitions of the DyAM risk score. C-index: Harrell's concordance index. "
+        "Cox HR: hazard ratio per unit of risk score from multivariate Cox regression adjusted for age, ECOG, albumin, dNLR, and liver "
+        "metastases. tdAUC: cumulative/dynamic time-dependent AUC at 6, 12 and 18 months (Uno estimator)."
     ),
 )
 
 add_table(
-    ["Model", "IHC arm", "χ²", "p-value"],
+    ["Model", "IHC arm", "χ² (mean ± s.d.)", "Minimum"],
     [
-        ["DyAM No clinical", "IHC-A", "28.17", "< 0.005"],
-        ["DyAM + NLP-PCA16", "IHC-A", "23.74", "< 0.005"],
-        ["DyAM No clinical", "IHC-G", "20.07", "< 0.005"],
-        ["**DyAM + NLP-PCA16**", "**IHC-G**", "**28.92***", "**< 0.005**"],
+    ['No clinical (baseline)', 'IHC-A', '16.9 ± 5.1', '10.6'],
+    ['+ Labs (13-dim numeric)', 'IHC-A', '19.5 ± 5.5', '13.1'],
+    ['+ NLP raw (384-dim)', 'IHC-A', '19.3 ± 7.6', '9.5'],
+    ['+ NLP-PCA16 (16-dim)', 'IHC-A', '18.4 ± 8.1', '7.0'],
+    ['+ Labs + NLP (combined)', 'IHC-A', '15.2 ± 4.3', '9.0'],
+    ['+ Labs + NLP-PCA16 (combined)', 'IHC-A', '15.2 ± 4.3', '8.6'],
+    ['+ BioClinBERT-PCA16', 'IHC-A', '21.5 ± 6.3', '13.7'],
+    ['No clinical (baseline)', 'IHC-G', '13.6 ± 4.1', '7.5'],
+    ['+ Labs (13-dim numeric)', 'IHC-G', '14.5 ± 2.2', '10.9'],
+    ['+ NLP raw (384-dim)', 'IHC-G', '15.3 ± 3.1', '10.9'],
+    ['+ NLP-PCA16 (16-dim)', 'IHC-G', '13.1 ± 3.4', '8.9'],
     ],
     caption=(
-        "**Table 8.** Kaplan–Meier log-rank statistics for survival "
-        "stratification. Patients were dichotomised at risk score = 0. "
-        "Threshold for significance: χ² > 7.88 (p < 0.005). All models "
-        "achieve p < 0.005. * Highest χ² across all tested models."
+        "**Table 8.** Kaplan–Meier log-rank statistics for survival stratification. Patients were dichotomised at the median risk score. Values are mean ± s.d. "
+        "of the log-rank χ² over 5 independent partitions, with the smallest of the five values; χ² > 3.84 corresponds to p < 0.05 and χ² > 7.88 to p < 0.005 (1 d.f.)."
     ),
 )
 
-add_figure(
-    f"{FIGDIR_CONV}\\fig4a_km_ihca_noclin.png",
-    "**Figure 5A.** Kaplan–Meier PFS curves, IHC-A arm, no clinical "
-    "encoding (χ² = 28.17).", width_in=4.2,
-)
-add_figure(
-    f"{FIGDIR_CONV}\\fig4b_km_ihca_nlppca16.png",
-    "**Figure 5B.** Kaplan–Meier PFS curves, IHC-A arm, + NLP-PCA16 "
-    "clinical encoding (χ² = 23.74).", width_in=4.2,
-)
-add_figure(
-    f"{FIGDIR_CONV}\\fig4c_km_ihcg_noclin.png",
-    "**Figure 5C.** Kaplan–Meier PFS curves, IHC-G arm, no clinical "
-    "encoding (χ² = 20.07).", width_in=4.2,
-)
-add_figure(
-    f"{FIGDIR_CONV}\\fig4d_km_ihcg_nlpraw.png",
-    "**Figure 5D.** Kaplan–Meier PFS curves, IHC-G arm, + NLP raw "
-    "clinical encoding (χ² = 28.92, the highest log-rank statistic among "
-    "all tested models). Panels A–D: patients stratified at risk "
-    "score = 0 into high-risk (red) and low-risk (blue) groups, with "
-    "number-at-risk tables. All comparisons reach p < 0.005 by the "
-    "log-rank test.", width_in=4.2,
-)
+import json as _json, os
+_rows = _json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "surv21_5seed_rows.json"), encoding="utf-8"))
+_common = ("5 seeds × 10-fold, each value the mean over the 5 seeds (n = 247; 209 events, median PFS 2.7 months), the same models and partitions as Table 3. "
+           "As there, the NLP encoding replaces the numeric labs, so only configurations 20 and 21 differ between the models with and without NLP; the D+NLP and O+NLP "
+           "entries of the other configurations repeat the values without NLP. For k = 1 OvO reduces to the cooperative formulation.")
+for _key, _hd, _cap in (
+    ("a", ("C-index", "log HR"),
+     "**Table 9.** Progression-free survival association of the fused risk score across the 21 configurations: Harrell's C-index and the log hazard ratio per 1 s.d. "
+     "of the risk score (adjusted for age, ECOG, albumin, dNLR and liver metastases). " + _common),
+    ("b", ("Log-rank χ²", "tdAUC 12 mo"),
+     "**Table 10.** Kaplan–Meier log-rank statistic (patients dichotomised at the median risk score; χ² > 3.84 corresponds to p < 0.05) and cumulative/dynamic "
+     "time-dependent AUC at 12 months (Uno estimator) across the 21 configurations. " + _common),
+):
+    add_table(["#", "Configuration", "k"] + [f"{m} {x}" for m in _hd for x in ("DyAM", "OvO", "D+NLP", "O+NLP")], _rows[_key], caption=_cap)
 
+add_figure(
+    f"{FIGDIR_CONV}\\fig4a_km_bm1_dyam.png",
+    "**Figure 5A.** Kaplan–Meier PFS curves, BM1, DyAM.", width_in=4.2,
+)
+add_figure(
+    f"{FIGDIR_CONV}\\fig4b_km_bm1_ovo.png",
+    "**Figure 5B.** Kaplan–Meier PFS curves, BM1, OvO.", width_in=4.2,
+)
+add_figure(
+    f"{FIGDIR_CONV}\\fig4c_km_bm1_dyam_nlp.png",
+    "**Figure 5C.** Kaplan–Meier PFS curves, BM1, DyAM+NLP.", width_in=4.2,
+)
+add_figure(
+    f"{FIGDIR_CONV}\\fig4d_km_bm1_ovo_nlp.png",
+    "**Figure 5D.** Kaplan–Meier PFS curves, BM1, OvO+NLP (NLP added to the BM1 sources). Curves are computed from the 5-seed ensemble risk score (the mean over the five seeds of the standardised out-of-fold score) at the primary benchmark BM1 (Rad+IHC-G+Gen+PDL1); the log-rank statistics shown in the panels are those of the ensemble score (mean per-seed values in Table 10). Patients are stratified at the median risk score into high-risk (red) and low-risk (blue) groups, with number-at-risk tables.", width_in=4.2,
+)
 add_figure(
     f"{FIGDIR_CONV}\\fig5a_cindex.png",
-    "**Figure 6A.** Harrell's C-index (bootstrap 95% CI) for IHC-A and "
-    "IHC-G arms; differences between encoding strategies were not "
-    "statistically significant (paired Wilcoxon p > 0.05).", width_in=4.2,
+    "**Figure 6A.** Harrell's C-index for IHC-A and IHC-G arms.", width_in=4.2,
 )
 add_figure(
     f"{FIGDIR_CONV}\\fig5b_tdauc.png",
-    "**Figure 6B.** Time-dependent AUC at 6, 12, and 18 months; "
-    "NLP-encoded models show the largest advantage at 12–18 months.",
-    width_in=4.2,
+    "**Figure 6B.** Time-dependent AUC at 6, 12, and 18 months.", width_in=4.2,
 )
 add_figure(
     f"{FIGDIR_CONV}\\fig5c_cox_forest.png",
-    "**Figure 6C.** Forest plot of multivariate Cox proportional hazards "
-    "ratios for the fused risk score, adjusted for age, ECOG performance "
-    "status, albumin, derived neutrophil-to-lymphocyte ratio, and liver "
-    "metastases (all p < 0.001).", width_in=4.2,
+    "**Figure 6C.** Multivariate Cox proportional hazards ratio per unit of the fused risk score, adjusted for age, ECOG performance status, albumin, derived neutrophil-to-lymphocyte ratio, and liver metastases.", width_in=4.2,
 )
 add_figure(
-    f"{FIGDIR_CONV}\\fig5d_ibs.png",
-    "**Figure 6D.** Integrated Brier Score (IBS) for each model; all "
-    "values fall well below the 0.25 random-guess threshold (range "
-    "0.172–0.175), indicating good calibration across all encoding "
-    "strategies.", width_in=4.2,
+    f"{FIGDIR_CONV}\\fig5d_km_chi2.png",
+    "**Figure 6D.** Log-rank χ² of the dichotomised risk score. Points and bars are mean ± s.d. over 5 independent 10-fold partitions (Tables 8 and 9).", width_in=4.2,
 )
 
 print("results done")
 
-# ========================================================= 4. DISCUSSION =
+# ===================== 4. DISCUSSION / 5. CONCLUSIONS (rendered from the LaTeX sections) =
+_bib_numbers()
+_assign_labels([("discussion", _strip_comments(_read(_TEXDIR / "sections" / "discussion.tex"))),
+                ("conclusion", _strip_comments(_read(_TEXDIR / "sections" / "conclusion.tex")))])
 H("4. Discussion", level=1)
-
-P(
-    "In this study, we extended the DyAM multimodal attention framework "
-    "with two complementary contributions: a competitive (OvO) attention "
-    "mechanism and an NLP-based encoding of tabular clinical features, and "
-    "evaluated both using binary classification and survival endpoints."
-)
-P(
-    "The best-performing model, DyAM Rad+IHC-G+Gen+PDL1+NLP raw, achieved "
-    "AUC = 0.813 [95% CI: 0.753–0.874], placing it in the "
-    "“excellent” discrimination range (0.80 ≤ AUC < 0.90) under commonly "
-    "used interpretation guidelines [27]. For context, this exceeds "
-    "the single-source models evaluated in the same cohort under the DyAM "
-    "framework — PD-L1 TPS alone (AUC = 0.720) and TMB alone "
-    "(AUC = 0.616) — consistent with the modest discrimination reported "
-    "for these markers in the literature [7,8]. This "
-    "confirms that multimodal fusion, augmented with NLP-encoded clinical "
-    "context, approaches the upper range of discrimination achievable with "
-    "currently available biomarkers in this disease setting."
-)
-P(
-    "Why does NLP encoding outperform raw numeric clinical features? We "
-    "propose that sentence embeddings capture non-linear interactions "
-    "between clinical variables — for example, the combined prognostic "
-    "implication of advanced age, low albumin, and poor performance status "
-    "— that are not explicitly represented in a 13-dimensional numeric "
-    "vector. The MiniLM-L6-v2 embedding space [16,17] is pretrained to "
-    "place semantically similar sentences close together; patients with "
-    "similar overall clinical profiles are therefore mapped to nearby "
-    "embedding vectors even when no single numeric feature dominates. Raw "
-    "numeric encoding, by contrast, presents each variable to the "
-    "attention mechanism independently, requiring the model to learn these "
-    "interactions de novo from a relatively small training set."
-)
-P(
-    "The AUC improvements associated with NLP encoding (+0.017 to +0.030) "
-    "did not reach statistical significance under DeLong confidence "
-    "interval testing, as all CIs overlapped substantially. This is best "
-    "interpreted as a power limitation rather than an absent effect. With "
-    "n = 247, the 95% CI width for AUC is approximately ±0.07; detecting a "
-    "true ΔAUC ≈ 0.02 at 80% power would require approximately 950–1,250 "
-    "patients (Supplementary Note S3). The directional consistency of the improvement across both "
-    "the IHC-A and IHC-G arms, and across raw and PCA-compressed NLP "
-    "variants, supports a true but modest effect size that is currently "
-    "underpowered rather than null."
-)
-P(
-    "The survival analysis provides an important reframing of this "
-    "finding. While binary AUC improvements were modest and "
-    "non-significant, multivariate Cox regression showed that NLP-PCA16 "
-    "achieved the highest hazard ratio in the IHC-A arm (HR = 6.07 vs. "
-    "HR = 5.30 for the no-clinical baseline), and NLP raw achieved the "
-    "highest hazard ratio in the IHC-G arm (HR = 4.97 vs. HR = 4.74), "
-    "whereas numeric clinical labs provided no comparable improvement in "
-    "either arm. Furthermore, the time-dependent AUC advantage of NLP "
-    "encoding was concentrated at 12 and 18 months (+0.024 and +0.020 in "
-    "the IHC-A arm) rather than at 6 months. Taken together, these results "
-    "suggest that NLP encoding of tabular clinical features predominantly "
-    "captures *prognostic (time-to-event)* information rather than "
-    "*predictive (binary response)* information — a distinction with "
-    "direct implications for how such encodings should be evaluated in "
-    "future multimodal studies."
-)
-P(
-    "The OvO competitive attention mechanism matched the accuracy of the "
-    "original cooperative attention while using a substantially simpler "
-    "parameterization. An initial single-partition screen suggested a "
-    "context-dependent pattern, with OvO favoured in low-modality "
-    "configurations (up to +3.27% for PDL1+Gen) and the original model "
-    "favoured as more modalities were added; the overall best-performing "
-    "single-partition configuration (Rad+IHC-G+Gen+PDL1, AUC = 0.8003) "
-    "used OvO attention. A confirmatory repeated-seed analysis (5 seeds × "
-    "10-fold) placed the two attention mechanisms within 0.011 AUC of each "
-    "other at all four primary benchmarks (p ≥ 0.17), with OvO reaching a "
-    "repeated-seed mean AUC of 0.773 versus 0.760 for the cooperative "
-    "model at the primary configuration — directionally favouring OvO, "
-    "though the single-partition “best” configuration's rank relative to "
-    "the cooperative model reversed once averaged across seeds, "
-    "underscoring the value of repeated-seed evaluation over a single "
-    "split."
-)
-P(
-    "Across all 21 configurations the repeated-seed data also reversed the "
-    "*direction* of the context-dependence seen in the screen: OvO matched "
-    "or exceeded cooperative attention in 7 of 8 configurations fusing "
-    "five or more sources, but in only 5 of 9 configurations with two to "
-    "four sources, where the spread between the two mechanisms was several "
-    "times larger. A competitive one-vs-others weighting is plausibly "
-    "better conditioned when many partially redundant sources compete, "
-    "whereas with few sources the comparison against the mean of the "
-    "remaining modalities is estimated from one or two values and becomes "
-    "unstable; we note, however, that the effect sizes involved "
-    "(≤ 0.018 AUC) sit below the seed-to-seed variability, so this remains "
-    "a hypothesis generated by the data rather than a tested claim."
-)
-P(
-    "When combined with NLP-clinical encoding, OvO reproduced the "
-    "identical fusion-dependent improvement pattern seen in the primary "
-    "NLP-clinical analysis (improvement in the same 15 of 21 "
-    "configurations, decline in the same six single-modality "
-    "configurations), reaching "
-    "AUC = 0.782 at the primary benchmark under the repeated-seed protocol "
-    "(repeated-seed NLP-clinical confirmation: 0.783) and "
-    "AUC = 0.8133 under the single-partition "
-    "protocol at the Rad+IHC-A+Gen+TMB+PDL1 configuration — the highest "
-    "value observed under either protocol in this study. OvO's practical "
-    "value lies in its simpler parameterization — N independent "
-    "per-modality scores compared against the mean of the remaining "
-    "modalities, rather than the N × N weight matrix required by "
-    "cooperative attention — delivering matching accuracy, and its "
-    "improvement pattern under NLP-clinical encoding generalises across "
-    "both attention mechanisms, indicating that the clinical-encoding "
-    "intervention, not the choice of attention mechanism, is the source "
-    "of the observed gain."
-)
-P(
-    "From a clinical implementation perspective, NLP encoding of "
-    "structured clinical data offers practical advantages: encoding a "
-    "patient profile requires less than one second on CPU, requires no "
-    "labelled clinical text, and can be applied to any structured "
-    "electronic health record (EHR) field that can be rendered as a "
-    "sentence. This makes the approach readily transferable to other "
-    "structured clinical datasets without requiring a fine-tuned clinical "
-    "language model."
-)
-P(
-    "Several limitations should be considered. First, this was a "
-    "single-institution retrospective cohort, which may limit "
-    "generalisability and introduce selection bias. Second, the "
-    "non-significant AUC improvement reflects the modest sample size "
-    "(n = 247) rather than a definitive negative result, and larger "
-    "multi-institutional cohorts are needed to confirm the observed "
-    "trends. Third, the sentence encoder was applied in a zero-shot manner "
-    "without fine-tuning on NSCLC-specific clinical text, which may limit "
-    "its sensitivity to domain-specific terminology. Finally, PD-L1 TPS "
-    "was scored using the Sauter method in this cohort, which may differ "
-    "from the SP142 or 22C3 assays used at other institutions, and the "
-    "generalisability of PD-L1-derived features should be interpreted "
-    "with this in mind."
-)
-
-# ========================================================= 5. CONCLUSIONS =
+render_tex("discussion")
 H("5. Conclusions", level=1)
-P(
-    "We extended the DyAM multimodal attention framework for ICI response "
-    "prediction in NSCLC with a competitive (OvO) attention mechanism and "
-    "an NLP-based encoding of structured clinical variables. Under a "
-    "repeated-seed evaluation protocol, OvO attention matched the original "
-    "cooperative attention at every primary benchmark configuration "
-    "(within 0.011 AUC, p ≥ 0.17; AUC = 0.773 vs. 0.760 at the primary "
-    "benchmark), offering a simpler, N-parameter alternative to the N × N "
-    "cooperative weight matrix without a measurable accuracy cost; an "
-    "initial single-partition screen had suggested a larger OvO advantage "
-    "in low-modality configurations (best single-partition AUC = 0.800, "
-    "later 0.8133 when combined with NLP-clinical encoding), and averaging "
-    "across five independent CV partitions confirmed OvO's accuracy while "
-    "showing this particular single-partition margin does not reproduce "
-    "exactly."
-)
-P(
-    "NLP encoding of clinical features using a general-purpose sentence "
-    "transformer consistently improved AUC over raw numeric encoding (up "
-    "to ΔAUC = +0.030) and provided the strongest independent prognostic "
-    "value in survival analysis, with the highest Cox hazard ratios and "
-    "time-dependent AUC among all clinical encoding strategies, despite "
-    "AUC differences not reaching statistical significance at n = 247. "
-    "This improvement was confirmed under repeated-seed evaluation (NLP "
-    "encoding exceeded numeric labs in 19 of 21 modality combinations) "
-    "and generalised across fusion mechanisms: combining NLP-clinical "
-    "encoding with OvO attention reproduced the same fusion-dependent "
-    "gain, indicating that the clinical-encoding strategy, rather than "
-    "the choice of attention mechanism, drives the improvement."
-)
-P(
-    "These findings suggest that sentence-embedding-based representations "
-    "of tabular clinical data are a practical and generalisable strategy "
-    "for multimodal biomarker discovery, robust to the underlying "
-    "attention architecture. Validation in larger, multi-institutional "
-    "cohorts is needed to confirm these findings and to establish their "
-    "clinical utility for treatment selection."
-)
+render_tex("conclusion")
 
 # ======================================================== DECLARATIONS ===
 H("Declarations", level=1)
-P("**Author Contributions:** Conceptualization, F.A. and T.A.; methodology, "
-  "F.A. and S.A.; software, F.A.; formal analysis, F.A.; writing—original "
-  "draft preparation, F.A.; writing—review and editing, S.A. and T.A.; "
-  "supervision, T.A. All authors have read and agreed to the published "
-  "version of the manuscript.")
-P("**Funding:** [Funding — e.g., This research received no external "
-  "funding.]")
-P("**Institutional Review Board Statement:** This study was approved by "
-  "the Institutional Review Board of [Institution] (Protocol No. "
-  "[IRB Number]).")
-P("**Informed Consent Statement:** Informed consent was obtained from all "
-  "subjects involved in the study.")
+P("**Author Contributions:** Conceptualization, methodology, software, formal analysis, investigation, writing—original draft preparation, and writing—review and editing, V.H.H. The author has read and agreed to the published version of the manuscript.")
 P("**Data Availability Statement:** The code used in this study is "
-  "available at https://github.com/[repo]. Patient-level data are "
+  "available at https://github.com/hoanghuyvu2k/Multimodal-Lung-Cancer. Patient-level data are "
   "subject to institutional data-sharing agreements and available upon "
   "reasonable request.")
-P("**Conflicts of Interest:** The authors declare no conflicts of "
+P("**Conflicts of Interest:** The author declares no conflicts of "
   "interest.")
 
 print("discussion/conclusion/declarations done")
@@ -1723,13 +1894,21 @@ for i, ref in enumerate(REFERENCES, 1):
     p.paragraph_format.first_line_indent = Cm(-0.75)
     p.paragraph_format.space_after = Pt(4)
     r = p.add_run(f"{i}.\t")
-    add_markup(p, ref)
+    _add_bookmark(p, f"ref_{i}", 9000 + i)
+    _add_ref_text_online(p, ref)
     for run in p.runs:
         run.font.size = Pt(10)
 
 print("references done")
 # Lưu; nếu file đích đang mở trong Word (bị khoá) thì fallback _v2, _v3...
 _target = Path(OUT_PATH)
+for _old in list(PAPER_DIR.glob(f"manuscript_word_{_TAG}*.docx")):
+    if _old != _target:
+        try:
+            (PAPER_DIR / "word_archive").mkdir(exist_ok=True)
+            _sh.move(str(_old), str(PAPER_DIR / "word_archive" / _old.name))
+        except OSError:
+            pass          # locked (open in Word): leave it where it is
 for attempt in range(10):
     try:
         doc.save(str(_target))

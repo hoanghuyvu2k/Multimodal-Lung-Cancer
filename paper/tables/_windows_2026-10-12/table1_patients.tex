@@ -1,0 +1,59 @@
+%% tables/table1_patients.tex
+%% SINH TỰ ĐỘNG bởi paper/make_table1.py — ĐỪNG sửa tay.
+%% Chạy lại: python paper/make_table1.py
+\begin{table}[H]
+\caption{Patient and cohort characteristics.
+  The discovery cohort was used for model development with 10-fold
+  cross-validation; validation cohorts were held out entirely.
+  Validation column reports radiomics-evaluable; pathology-evaluable cohort
+  values, separated by a semicolon.
+  \textsuperscript{a}~Percentage of patients with the given modality
+  available; \textsuperscript{b}~ICI categories are recorded as independent
+  flags and are not mutually exclusive (patients on combination therapy are
+  counted in more than one row); \textsuperscript{c}~not recorded in the
+  source registry for the validation cohorts.
+  PR/CR, partial/complete response; SD/PD, stable/progressive disease;
+  ICI, immune checkpoint inhibitor; PD-L1, programmed death-ligand 1;
+  TPS, tumour proportion score; PFS, progression-free survival.}
+\label{tab:patients}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Characteristic} & \textbf{Discovery} & \textbf{Validation} \\
+                        & \textbf{($n = 247$)} & \textbf{(rad $n=50$; path $n=71$)} \\
+\midrule
+\multicolumn{3}{l}{\textit{Demographics}} \\
+\quad Age, years, mean (range)  & 66.9 (38--93) & 64.4 (45--86); 68.0 (30--89) \\
+\quad Male sex, $n$ (\%)        & 113 (45.7\%) & 24 (48.0\%); 32 (45.1\%) \\
+\midrule
+\multicolumn{3}{l}{\textit{Histology, $n$ (\%)}} \\
+\quad Adenocarcinoma            & 184 (74.5\%) & 39 (78.0\%); 47 (66.2\%) \\
+\quad Squamous cell             & 36 (14.6\%) & 7 (14.0\%); 13 (18.3\%) \\
+\quad Other / NOS               & 27 (10.9\%) & 4 (8.0\%); 11 (15.5\%) \\
+\midrule
+\multicolumn{3}{l}{\textit{Performance status (ECOG), $n$ (\%)}} \\
+\quad 0                         & 28 (11.3\%) & 10 (20.0\%); 8 (11.3\%) \\
+\quad 1                         & 194 (78.5\%) & 39 (78.0\%); 58 (81.7\%) \\
+\quad $\geq$2                   & 25 (10.1\%) & 1 (2.0\%); 5 (7.0\%) \\
+\midrule
+\multicolumn{3}{l}{\textit{ICI therapy\textsuperscript{b}, $n$ (\%)}} \\
+\quad Anti-PD-1                 & 197 (79.8\%) & ---\textsuperscript{c}; ---\textsuperscript{c} \\
+\quad Anti-PD-L1                & 50 (20.2\%) & ---\textsuperscript{c}; ---\textsuperscript{c} \\
+\quad Combination               & 12 (4.9\%) & ---\textsuperscript{c}; ---\textsuperscript{c} \\
+\midrule
+\multicolumn{3}{l}{\textit{Treatment outcome, $n$ (\%)}} \\
+\quad Response (PR/CR), label=0 & 62 (25.1\%) & 11 (22.0\%); 21 (29.6\%) \\
+\quad No response (SD/PD), label=1 & 185 (74.9\%) & 39 (78.0\%); 50 (70.4\%) \\
+\midrule
+\multicolumn{3}{l}{\textit{Survival (PFS)}} \\
+\quad Events (progression/death), $n$ (\%) & 209 (84.6\%) & 46 (92.0\%); 55 (77.5\%) \\
+\quad Median PFS, months (range)            & 2.7 (0.1--49.1) & 2.6 (1.0--59.7); 2.7 (0.1--28.4) \\
+\midrule
+\multicolumn{3}{l}{\textit{Modality availability\textsuperscript{a}, $n$ (\%)}} \\
+\quad CT radiomics (PC/PL/LN)  & 187 (75.7\%)  & 46/50; --- \\
+\quad Pathology IHC             & 105 (42.5\%)  & ---; 52/71 \\
+\quad Genomics (NGS)            & 247 (100.0\%)  & --- \\
+\quad PD-L1 TPS score           & 201 (81.4\%) & --- \\
+\quad Clinical labs (13 vars)   & 247 (100.0\%) & --- \\
+\bottomrule
+\end{tabular}
+\end{table}

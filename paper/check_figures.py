@@ -30,6 +30,7 @@ FIG_SCRIPTS = [
     ('Figure 1  (study overview)',      'generate_fig1_demo.py'),
     ('Figure 2  (NLP pipeline)',        'generate_fig2_demo.py'),
     ('Figure 3  (attention architect.)', 'generate_fig_attention_demo.py'),
+    ('Figure AUC (3a/3b encodings)',     'generate_fig3_demo.py'),
 ]
 
 # Nhãn đè nhau dưới ngưỡng này coi như không đáng kể (đơn vị: tỉ lệ diện

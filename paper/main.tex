@@ -43,49 +43,41 @@
 Prediction in Non-Small Cell Lung Cancer}
 
 \Author{%
-  First Author$^{1,\dagger}$,
-  Second Author$^{2}$,
-  Third Author$^{1,*}$
+  Vũ Huy Hoàng$^{1,*}$
 }
 
-\AuthorNames{Author, F.; Author, S.; Author, T.}
+\AuthorNames{Vũ, H.H.}
 
 \address{%
-  $^{1}$ \quad Department of [DEPARTMENT], [UNIVERSITY], [CITY], [COUNTRY];
-           \href{mailto:first@email.com}{first@email.com} \\
-  $^{2}$ \quad Department of [DEPARTMENT], [UNIVERSITY], [CITY], [COUNTRY]
+  $^{1}$ \quad Master's student (Student ID 20242052M), School of Information and Communication Technology, Hanoi University of Science and Technology, Hanoi, Vietnam
 }
 
-\corres{Correspondence: \href{mailto:third@email.com}{third@email.com}; Tel.: +X-XXX-XXX-XXXX}
-
-\firstnote{$\dagger$ These authors contributed equally to this work.}
+\corres{Correspondence: \href{mailto:Hoang.VH242052M@sis.hust.edu.vn}{Hoang.VH242052M@sis.hust.edu.vn}; Tel.: +84-327-633-274}
 
 %% ── Abstract & Keywords ──────────────────────────────────────────────────────
 \abstract{%
-  Predicting  response to immune checkpoint inhibitors (ICIs) in non-small
+  Predicting response to immune checkpoint inhibitors (ICIs) in non-small
   cell lung cancer (NSCLC) remains challenging, as established biomarkers
   such as PD-L1 expression provide only modest discrimination.
   We extended the Dynamic Attention Multimodal (DyAM) fusion framework, which
   combines CT radiomics, pathology, genomics, PD-L1, and clinical data via
   learned per-modality attention, with two contributions: a competitive
-  one-vs-others (OvO) attention mechanism, and a natural language processing
-  (NLP) encoding of 13 numeric clinical variables using a pretrained sentence
-  transformer.
-  In a 247-patient discovery cohort, repeated-seed evaluation
-  (5~seeds~$\times$~10-fold, 21 combinations) placed OvO within
-  $0.011$~AUC of cooperative attention at every primary benchmark
-  (AUC~$=0.773$ vs.\ $0.760$, $p\geq 0.17$), exceeding it in 12 of 21
-  combinations (best single-partition AUC~$=0.800$), showing OvO's simpler
-  formulation matches or exceeds cooperative attention at no accuracy cost.
-  NLP-encoded clinical features improved AUC over raw numeric encoding in
-  both pathology arms (best AUC~$=0.813$ [0.753--0.874], $\Delta = +0.030$),
-  a gain that also held for OvO.
-  Survival analysis showed NLP encoding yielded the highest Cox hazard
-  ratios (up to 6.07 vs.\ 5.30) and improved time-dependent AUC at
-  12--18~months, with all Kaplan--Meier stratifications reaching
-  $p < 0.005$.
-  NLP-based clinical encoding offers a practical, architecture-agnostic
-  improvement to multimodal ICI response prediction.
+  one-vs-others (OvO) attention mechanism with a smaller parameter count, and a
+  natural language processing (NLP) encoding of 13 numeric clinical variables
+  using a pretrained sentence transformer.
+  In a 247-patient discovery cohort, repeated-seed evaluation (5~seeds~$\times$~10-fold, 21 modality combinations) gave three main results.
+  First, fusing sources gave the highest AUCs: four fused sources reached a mean AUC of $0.763$ and, with the NLP encoding, $0.786 \pm 0.017$,
+  against $0.720$ for PD-L1~TPS alone.
+  Second, replacing numeric clinical labs by the NLP encoding raised the mean AUC in all six comparisons made
+  ($+0.014$ to $+0.024$) with both attention mechanisms.
+  Third, OvO attention, with about a quarter of the trainable parameters, had the higher mean AUC at the primary benchmark ($0.771$ versus $0.763$)
+  and by up to $+0.045$ in other configurations, most consistently when five or more sources were fused, and with the NLP encoding added the
+  two mechanisms reached $0.785 \pm 0.022$ (OvO) and $0.786 \pm 0.017$ (cooperative attention) at the primary benchmark.
+  For progression-free survival, the association of the risk score grew with the number of fused sources, and OvO had a higher log hazard ratio,
+  12-month time-dependent AUC and C-index than cooperative attention in all eight configurations with five to seven sources;
+  OvO with the NLP encoding gave the highest log hazard ratio ($0.495$ against $0.416$ for cooperative attention at the labs-replaced primary configuration;
+  higher in all 5 seeds).
+  Performance on an order-based hold-out partition was lower (0.703 for OvO+NLP and 0.700 for DyAM+NLP).
 }
 
 \keyword{%
@@ -110,35 +102,19 @@ Prediction in Non-Small Cell Lung Cancer}
 
 %% ── MDPI mandatory back-matter declarations ─────────────────────────────────
 \authorcontributions{%
-  Conceptualization, [F.A.] and [T.A.];
-  methodology, [F.A.] and [S.A.];
-  software, [F.A.];
-  formal analysis, [F.A.];
-  writing---original draft preparation, [F.A.];
-  writing---review and editing, [S.A.] and [T.A.];
-  supervision, [T.A.].
-  All authors have read and agreed to the published version of the manuscript.
-}
-
-\funding{[FUNDING — e.g., This research received no external funding.]}
-
-\institutionalreview{%
-  This study was approved by the Institutional Review Board of [INSTITUTION]
-  (Protocol No.~[IRB-NUMBER]).
-}
-
-\informedconsent{%
-  Informed consent was obtained from all subjects involved in the study.
+  Conceptualization, methodology, software, formal analysis, investigation,
+  writing---original draft preparation, and writing---review and editing, V.H.H.
+  The author has read and agreed to the published version of the manuscript.
 }
 
 \dataavailability{%
   The code used in this study is available at
-  \href{https://github.com/[REPO]}{https://github.com/[REPO]}.
+  \url{https://github.com/hoanghuyvu2k/Multimodal-Lung-Cancer}.
   Patient-level data are subject to institutional data-sharing agreements
   and available upon reasonable request.
 }
 
-\conflictsofinterest{The authors declare no conflicts of interest.}
+\conflictsofinterest{The author declares no conflicts of interest.}
 
 \bibliography{references}
 

@@ -1,0 +1,120 @@
+%% MDPI Cancers — Main Manuscript
+%% Compile: pdflatex main → bibtex main → pdflatex main → pdflatex main
+%%          OR: latexmk -pdf main
+
+\documentclass[cancers,article,submit,moreauthors,pdftex]{mdpi}
+%% Fallback if mdpi.cls not installed:
+%% \documentclass[12pt,a4paper]{article}
+
+%% ── Core packages ────────────────────────────────────────────────────────────
+\usepackage{amsmath,amssymb}        % math
+\usepackage{booktabs}               % professional tables (\toprule \midrule)
+\usepackage{graphicx}               % \includegraphics
+%% subfig is already loaded by mdpi.cls; \subfloat{} is used for subfigures
+\usepackage{float}                  % [H] float placement
+\usepackage{pdflscape}              % landscape pages for wide tables
+%% hyperref is already loaded by mdpi.cls; reloading it breaks the preamble
+\usepackage{xcolor}                 % \textcolor{} for review comments
+\usepackage{microtype}              % better line-break typography
+\usepackage{array}                  % p{} column type in tabular
+\usepackage{multirow}               % \multirow in tables
+\usepackage{siunitx}                % consistent number formatting
+\usepackage{natbib}                 % author-year citations
+%% bibliographystyle{mdpi} is already set by mdpi.cls
+
+%% ── MDPI internal commands - do not modify ──────────────────────────────────
+\firstpage{1}
+\makeatletter
+\setcounter{page}{\@firstpage}
+\makeatother
+\pubvolume{1}
+\issuenum{1}
+\articlenumber{0}
+\pubyear{2026}
+\copyrightyear{2026}
+\datereceived{ }
+\daterevised{ }
+\dateaccepted{ }
+\datepublished{ }
+\setlength{\headheight}{20.0pt}
+
+%% ── Journal metadata ─────────────────────────────────────────────────────────
+\Title{NLP-Augmented Multimodal Attention Fusion for Immunotherapy Response
+Prediction in Non-Small Cell Lung Cancer}
+
+\Author{%
+  Vũ Huy Hoàng$^{1,*}$
+}
+
+\AuthorNames{Vũ, H.H.}
+
+\address{%
+  $^{1}$ \quad Master's student (Student ID 20242052M), School of Information and Communication Technology, Hanoi University of Science and Technology, Hanoi, Vietnam
+}
+
+\corres{Correspondence: \href{mailto:Hoang.VH242052M@sis.hust.edu.vn}{Hoang.VH242052M@sis.hust.edu.vn}; Tel.: +84-327-633-274}
+
+%% ── Abstract & Keywords ──────────────────────────────────────────────────────
+\abstract{%
+  Predicting response to immune checkpoint inhibitors (ICIs) in non-small
+  cell lung cancer (NSCLC) remains challenging, as established biomarkers
+  such as PD-L1 expression provide only modest discrimination.
+  We extended the Dynamic Attention Multimodal (DyAM) fusion framework, which
+  combines CT radiomics, pathology, genomics, PD-L1, and clinical data via
+  learned per-modality attention, with two contributions: a competitive
+  one-vs-others (OvO) attention mechanism with a smaller parameter count, and a
+  natural language processing (NLP) encoding of 13 numeric clinical variables
+  using a pretrained sentence transformer.
+  In a 247-patient discovery cohort, 10-fold cross-validation across 21 modality combinations gave three main results.
+  First, fusing sources gave the highest AUCs: four fused sources reached $0.798$, $+0.090$ above PD-L1~TPS ($0.708$) alone,
+  and the best model reached $0.824$ (95\% CI 0.765--0.883).
+  Second, replacing numeric clinical labs by the NLP encoding raised the AUC in all six comparisons made
+  ($+0.018$ to $+0.033$) with both attention mechanisms.
+  Third, OvO attention with the NLP encoding gave the highest AUC at the primary benchmark ($0.824$, against $0.803$ for cooperative
+  attention with NLP and $0.783$ for the original framework without clinical variables, $+0.041$) with about a quarter of the
+  trainable parameters.
+  For progression-free survival, the association of the risk score grew with the number of fused sources
+  (C-index $0.56$--$0.59$ for single sources, up to $0.66$ with six or seven), and OvO with the NLP encoding gave the highest hazard ratio
+  ($6.64$ versus $4.63$ for cooperative attention), log-rank $\chi^2$ ($23.9$ versus $17.6$) and 12-month time-dependent AUC
+  ($0.733$ versus $0.698$) in the labs-replaced configuration of BM2.
+}
+
+\keyword{%
+  non-small cell lung cancer;
+  immunotherapy response prediction;
+  multimodal deep learning;
+  attention mechanism;
+  natural language processing;
+  sentence embedding;
+  survival analysis;
+  radiomics
+}
+
+%% ─────────────────────────────────────────────────────────────────────────────
+\begin{document}
+
+\input{sections/introduction}
+\input{sections/methods}
+\input{sections/results}
+\input{sections/discussion}
+\input{sections/conclusion}
+
+%% ── MDPI mandatory back-matter declarations ─────────────────────────────────
+\authorcontributions{%
+  Conceptualization, methodology, software, formal analysis, investigation,
+  writing---original draft preparation, and writing---review and editing, V.H.H.
+  The author has read and agreed to the published version of the manuscript.
+}
+
+\dataavailability{%
+  The code used in this study is available at
+  \url{https://github.com/hoanghuyvu2k/Multimodal-Lung-Cancer}.
+  Patient-level data are subject to institutional data-sharing agreements
+  and available upon reasonable request.
+}
+
+\conflictsofinterest{The author declares no conflicts of interest.}
+
+\bibliography{references}
+
+\end{document}

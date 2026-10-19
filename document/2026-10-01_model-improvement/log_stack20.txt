@@ -1,0 +1,26 @@
+seed  1/20 (42): không aug 0.8050 | aug 0.8064 | Δ +0.0014
+seed  2/20 (7): không aug 0.7829 | aug 0.7827 | Δ -0.0003
+seed  3/20 (123): không aug 0.7893 | aug 0.7979 | Δ +0.0086
+seed  4/20 (2024): không aug 0.7772 | aug 0.7799 | Δ +0.0026
+seed  5/20 (31337): không aug 0.7935 | aug 0.7926 | Δ -0.0010
+seed  6/20 (11): không aug 0.7833 | aug 0.7799 | Δ -0.0033
+seed  7/20 (22): không aug 0.7920 | aug 0.7919 | Δ -0.0001
+seed  8/20 (33): không aug 0.7828 | aug 0.7739 | Δ -0.0089
+seed  9/20 (44): không aug 0.7568 | aug 0.7594 | Δ +0.0025
+seed 10/20 (55): không aug 0.7829 | aug 0.7800 | Δ -0.0029
+seed 11/20 (66): không aug 0.8041 | aug 0.8125 | Δ +0.0084
+seed 12/20 (77): không aug 0.8003 | aug 0.7967 | Δ -0.0037
+seed 13/20 (88): không aug 0.7999 | aug 0.8010 | Δ +0.0010
+seed 14/20 (99): không aug 0.7927 | aug 0.7911 | Δ -0.0016
+seed 15/20 (101): không aug 0.7814 | aug 0.7938 | Δ +0.0124
+seed 16/20 (202): không aug 0.7940 | aug 0.7987 | Δ +0.0047
+seed 17/20 (303): không aug 0.7804 | aug 0.7867 | Δ +0.0063
+seed 18/20 (404): không aug 0.7825 | aug 0.7796 | Δ -0.0029
+seed 19/20 (505): không aug 0.7936 | aug 0.8040 | Δ +0.0104
+seed 20/20 (606): không aug 0.7924 | aug 0.7998 | Δ +0.0074
+   -> đã ghi D:\code\master\doan\code\experiments\results\final_stack20.json
+
+NLP+miss         : 0.7884 ± 0.011 | ensemble K5 0.7952 K10 0.7973 K20 0.7977
+NLP+miss + aug   : 0.7904 ± 0.013 | ensemble K5 0.7974 K10 0.7995 K20 0.7998
+ghép cặp 20 seed : Δ = +0.0021 ± 0.0055, aug thắng 11/20, Wilcoxon p = 0.2305
+XONG

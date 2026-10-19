@@ -1,0 +1,22 @@
+%% sections/conclusion.tex — single-partition version
+\section{Conclusions}
+\label{sec:conclusion}
+
+We extended the DyAM multimodal attention framework for ICI response prediction in NSCLC with a competitive (OvO)
+attention mechanism and an NLP-based encoding of structured clinical variables, and the experiments
+support four conclusions.
+First, fusing sources is what raises performance: four fused sources reached an AUC of $0.798$ and the best model $0.824$
+(95\% CI 0.765--0.883), against $0.708$ for PD-L1~TPS alone, and the association of the risk score with progression-free survival grew with the number of
+fused sources across the 21 configurations (C-index up to $0.66$).
+Second, the NLP encoding of clinical variables with a general-purpose sentence transformer exceeded numeric labs in all six comparisons
+($+0.018$ and $+0.019$ in the two pathology arms, $+0.019$ to $+0.033$ in the two seven-source configurations), without any
+fine-tuning on clinical text.
+Third, OvO attention with the NLP encoding gave the highest AUC at the primary benchmark ($0.824$ against $0.803$ for cooperative
+attention and $0.783$ for the original framework, $+0.041$) with about a quarter of the trainable parameters, and
+the strongest separation of risk groups in the labs-replaced configuration of BM2 (hazard ratio $6.64$ against $4.63$,
+log-rank $\chi^2 = 23.9$ against $17.6$, 12-month time-dependent AUC $0.733$ against $0.698$), although the C-index was similar ($0.633$ against $0.640$).
+Fourth, the approach is practical, since encoding a patient takes less than one second on CPU and needs no labelled clinical text.
+These results come from a single 10-fold partition, and an order-based hold-out evaluation gave lower estimates ($0.703$ for OvO+NLP and
+$0.700$ for DyAM+NLP), so the cross-validated AUCs should not be read as expected performance in new patients.
+Validation in larger, multi-institutional cohorts with calendar dates is needed to confirm these findings and to establish their
+clinical utility for treatment selection.

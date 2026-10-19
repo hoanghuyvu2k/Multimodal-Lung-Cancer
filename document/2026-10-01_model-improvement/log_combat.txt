@@ -1,0 +1,25 @@
+
+============================================================================================
+HƯỚNG 1 — ComBat radiomics
+============================================================================================
+247 62
+[neuroCombat] Creating design matrix
+[neuroCombat] Standardizing data across features
+[neuroCombat] Fitting L/S model and finding priors
+[neuroCombat] Finding parametric adjustments
+[neuroCombat] Final adjustment of data
+(array([1.]), array([163], dtype=int64))
+(array([3.]), array([21], dtype=int64))
+(array([5.]), array([67], dtype=int64))
+(array([1., 2., 3., 4., 5., 6.]), array([133,   6,   4,   5,  28,  11], dtype=int64))
+   [ComBat] đã hài hoà 1609 đặc trưng radiomics trên 3996 dòng; batch: {'unknown': 212, 'revolution': 69, 'lightspeed': 52}
+tổ hợp                               gốc          ComBat        Δ
+Rad+IHC-G+Gen+PDL1      0.7501±0.0160.7501±0.016  +0.0000
+Rad+Gen                 0.6869±0.0220.6869±0.022  +0.0000
+   -> đã ghi D:\code\master\doan\code\experiments\results\modelimp.json
+[hướng 1] OK sau 9.0 phút
+
+============================================================================================
+TỔNG KẾT
+============================================================================================
+  hướng 1  OK      9.0 phút  

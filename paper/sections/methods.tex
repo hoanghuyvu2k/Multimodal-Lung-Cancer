@@ -36,11 +36,6 @@ A secondary time-to-event endpoint, progression-free survival (PFS), was defined
 as time from ICI initiation to disease progression or death from any cause.
 Patients without a recorded event were censored at the date of last follow-up.
 
-This study was conducted in accordance with the Declaration of Helsinki and
-approved by the Institutional Review Board of [INSTITUTION]
-(Protocol No.~[IRB-NUMBER]).
-All patients provided written informed consent.
-
 \begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{figures/fig1_overview_demo.pdf}
@@ -171,7 +166,7 @@ No fine-tuning was performed; the model was applied in zero-shot transfer.
 We compared this general-purpose encoder against the domain-specific
 \texttt{Bio\_ClinicalBERT} \cite{Alsentzer2019};
 the domain-specific model performed inferiorly
-($\Delta\text{AUC} = -0.017$ versus MiniLM-L6-v2 in the IHC-A arm),
+($\Delta\text{AUC} = -0.012$ versus MiniLM-L6-v2 in the IHC-A arm),
 consistent with its design for masked language modelling
 rather than sentence-similarity tasks (Supplementary Note~S2).
 
@@ -301,10 +296,10 @@ For both variants, the final risk prediction is:
 The model was trained with binary cross-entropy loss
 (\texttt{BCEWithLogitsLoss}) with automatic inverse-frequency class
 weighting to address the $\approx$1:3 class imbalance,
-$\ell_1$ regularisation on attention weights ($\alpha = 1.0$),
-and $\ell_2$ weight decay ($\beta = 1.0$).
+an $\ell_2$ penalty on the weights (coefficient $\alpha = 0.001$);
+the attention-norm penalty was disabled ($\beta = 0$).
 The Adam optimiser was used with a learning rate of 0.01 for 125 epochs.
-All experiments used 10-fold stratified cross-validation on the
+All experiments used 10-fold cross-validation (shuffled, not stratified) on the
 discovery cohort; predictions were pooled across held-out folds for
 AUC computation.
 
@@ -320,34 +315,42 @@ Area under the receiver operating characteristic curve (AUC-ROC) was
 computed on pooled out-of-fold predictions from 10-fold cross-validation.
 Ninety-five percent confidence intervals (CIs) were estimated using the
 DeLong structural components method \cite{DeLong1988}.
-Two models were considered statistically significantly different when their
-95\% CIs did not overlap, consistent with standard practice in oncology
-imaging studies.
+Differences between models are reported as the difference in mean AUC across
+repeated partitions (5~seeds~$\times$~10-fold, or 20 partitions where stated), the
+number of configurations or partitions favouring each model, and, where patient-level
+scores were retained, a 95\% patient-level bootstrap interval (5000 resamples) of
+the difference in ensemble AUC. Because the cohort is small, hypothesis tests were not
+used to claim that one model is superior; DeLong intervals are reported for single
+AUC values only. Ensemble scores average, for each patient, the per-partition scores
+after standardisation within each partition.
 
 \paragraph{Survival analysis.}
 Harrell's concordance index (C-index) \cite{Harrell1996} was computed from
-pooled out-of-fold risk scores against PFS.
-Bootstrap 95\% CIs were derived from 1{,}000 resamples with replacement.
-For pairwise comparisons, per-fold C-indices (10 values) were compared with
-a two-sided Wilcoxon signed-rank test ($\alpha = 0.05$).
-Time-dependent AUC was computed at 6, 12, and 18~months using the
-cumulative/dynamic estimator \cite{Uno2007,Hung2010}.
+pooled out-of-fold risk scores against PFS, and the survival analyses were repeated for
+5~seeds~$\times$~10-fold partitions, reporting mean $\pm$ s.d.
 Multivariate Cox proportional hazards regression was fitted with the
 DyAM risk score as the primary predictor, adjusted for five clinical
 covariates: age, ECOG performance status, serum albumin, dNLR, and
-liver metastasis status.
-Hazard ratios (HRs) are reported with 95\% CIs and Wald $p$-values.
-Model calibration was assessed via the Integrated Brier Score (IBS);
-values below 0.25 indicate better-than-random calibration.
+liver metastasis status; hazard ratios are per unit of risk score.
+Time-dependent AUC (6, 12 and 18~months; cumulative/dynamic estimator
+\cite{Uno2007,Hung2010}) was computed for each of the five partitions
+(\texttt{scikit-survival}~0.28 with \texttt{numpy}~2.5.4 in a separate environment, from the stored out-of-fold
+risk scores).
 
 \paragraph{Kaplan--Meier survival stratification.}
-Patients were dichotomised at risk score~$= 0$, and PFS curves for the
+Patients were dichotomised at the median risk score, and PFS curves for the
 two groups were compared with the log-rank test.
-A threshold of $\chi^2 > 7.88$ ($p < 0.005$) was applied as the
-significance criterion, consistent with oncology reporting standards.
+The log-rank $\chi^2$ is reported with $\chi^2 > 3.84$ ($p < 0.05$) and
+$\chi^2 > 7.88$ ($p < 0.005$) as reference values.
 
 \paragraph{Software.}
-All analyses were performed in Python~3.10 using PyTorch~2.0 (model training),
-\texttt{lifelines}~0.27 (Kaplan--Meier, Cox regression, C-index),
-\texttt{scikit-survival}~0.21 (time-dependent AUC, Brier score),
-and \texttt{scipy}~1.11 (Wilcoxon test).
+All numerical results in Tables~\ref{tab:ovo_all21}--\ref{tab:surv21b} were computed in one pinned environment
+(Linux under WSL2, Ubuntu~22.04; Python~3.8.15, PyTorch~1.8.1 (CPU), \texttt{scikit-learn}~0.24.2,
+\texttt{scipy}~1.6.3, \texttt{numpy}~1.20.3, \texttt{pandas}~1.2.5, and \texttt{lifelines}~0.26.0 for
+Kaplan--Meier, Cox regression and the C-index). In this environment the original DyAM code reproduced the
+single-partition AUC of the original publication at its primary benchmark (0.798) to within one patient pair.
+The same code and library versions on another operating system gave AUCs that differed in the second or
+third decimal place, so results were never compared across platforms; the radiomics feature selection used
+the original procedure, without removal of degenerate columns. The sentence-encoder embeddings (MiniLM-L6-v2
+and Bio\_ClinicalBERT) were computed once in a separate environment and cached, and time-dependent AUC was
+computed from the stored out-of-fold risk scores with \texttt{scikit-survival}~0.28 (\texttt{numpy}~2.5.4).

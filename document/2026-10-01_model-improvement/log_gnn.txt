@@ -1,0 +1,12 @@
+tổ hợp                        V0 expert-mean       V1 expert+graph           V2 gnn-mean           V3 gnn-attn   uniform_avg
+   -> đã ghi D:\code\master\doan\code\experiments\results\gnn_patient_graph.json
+Rad+IHC-G+Gen+PDL1              0.7619±0.013          0.6991±0.026          0.7029±0.025          0.6840±0.018        0.7730
+   -> đã ghi D:\code\master\doan\code\experiments\results\gnn_patient_graph.json
+Rad+IHC-G+Gen                   0.7368±0.014          0.6913±0.019          0.6808±0.013          0.6682±0.025        0.7510
+   -> đã ghi D:\code\master\doan\code\experiments\results\gnn_patient_graph.json
+Rad+Gen                         0.7100±0.019          0.6848±0.025          0.6824±0.018          0.6832±0.009        0.7160
+   -> đã ghi D:\code\master\doan\code\experiments\results\gnn_patient_graph.json
+IHC-G+Gen                       0.6938±0.014          0.6608±0.033          0.6524±0.013          0.6484±0.008        0.7184
+   -> đã ghi D:\code\master\doan\code\experiments\results\gnn_patient_graph.json
+PDL1+Gen                        0.7197±0.008          0.7246±0.010          0.7440±0.010          0.7363±0.008        0.7191
+XONG
